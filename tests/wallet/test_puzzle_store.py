@@ -2,10 +2,10 @@ import asyncio
 from pathlib import Path
 from secrets import token_bytes
 
-import aiosqlite
 import pytest
 from blspy import AugSchemeMPL
 
+from chia.util.db_factory import create_database
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32
 from chia.wallet.derivation_record import DerivationRecord
@@ -27,7 +27,8 @@ class TestPuzzleStore:
         if db_filename.exists():
             db_filename.unlink()
 
-        con = await aiosqlite.connect(db_filename)
+        con = create_database(str(db_filename))
+        await con.connect()
         wrapper = DBWrapper(con)
         db = await WalletPuzzleStore.create(wrapper)
         try:

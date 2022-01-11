@@ -6,10 +6,11 @@ import signal
 import traceback
 from typing import Any, List
 
-import aiosqlite
+from databases import Database
 from dnslib import A, AAAA, SOA, NS, MX, CNAME, RR, DNSRecord, QTYPE, DNSHeader
 
 from chia.util.chia_logging import initialize_logging
+from chia.util.db_factory import create_database
 from chia.util.path import mkdir, path_from_root
 from chia.util.config import load_config
 from chia.util.default_root import DEFAULT_ROOT_PATH
@@ -68,7 +69,7 @@ class DNSServer:
     reliable_peers_v6: List[str]
     lock: asyncio.Lock
     pointer: int
-    crawl_db: aiosqlite.Connection
+    crawl_db: Database
 
     def __init__(self):
         self.reliable_peers_v4 = []
@@ -101,14 +102,16 @@ class DNSServer:
             await asyncio.sleep(sleep_interval * 60)
             try:
                 # TODO: double check this. It shouldn't take this long to connect.
-                crawl_db = await aiosqlite.connect(self.db_path, timeout=600)
+                crawl_db = Database(str(self.db_path))
+                await crawl_db.connect()
+                # TODO: ajw ADD TIMEOUT crawl_db = await aiosqlite.connect(self.db_path, timeout=600)
                 cursor = await crawl_db.execute(
                     "SELECT * from good_peers",
                 )
                 new_reliable_peers = []
                 rows = await cursor.fetchall()
                 await cursor.close()
-                await crawl_db.close()
+                await crawl_db.disconnect()
                 for row in rows:
                     new_reliable_peers.append(row[0])
                 if len(new_reliable_peers) > 0:

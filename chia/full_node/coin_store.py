@@ -1,5 +1,5 @@
 from typing import List, Optional, Set, Dict, Any, Tuple
-import aiosqlite
+from databases import Database
 from chia.protocols.wallet_protocol import CoinState
 from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.sized_bytes import bytes32
@@ -19,7 +19,7 @@ class CoinStore:
     A cache is maintained for quicker access to recent coins.
     """
 
-    coin_record_db: aiosqlite.Connection
+    coin_record_db: Database
     coin_record_cache: LRUCache
     cache_size: uint32
     db_wrapper: DBWrapper
@@ -81,7 +81,6 @@ class CoinStore:
 
         await self.coin_record_db.execute("CREATE INDEX IF NOT EXISTS coin_parent_index on coin_record(coin_parent)")
 
-        await self.coin_record_db.commit()
         self.coin_record_cache = LRUCache(cache_size)
         return self
 

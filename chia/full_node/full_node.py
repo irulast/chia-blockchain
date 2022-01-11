@@ -7,8 +7,8 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
-import aiosqlite
 from blspy import AugSchemeMPL
+from databases import Database
 
 import chia.server.ws_connection as ws  # lgtm [py/import-and-import-from]
 from chia.consensus.block_creation import unfinished_block_to_full_block
@@ -63,6 +63,7 @@ from chia.util.bech32m import encode_puzzle_hash
 from chia.util.check_fork_next_block import check_fork_next_block
 from chia.util.condition_tools import pkm_pairs
 from chia.util.config import PEER_DB_PATH_KEY_DEPRECATED
+from chia.util.db_factory import create_database
 from chia.util.db_wrapper import DBWrapper
 from chia.util.errors import ConsensusError, Err, ValidationError
 from chia.util.ints import uint8, uint32, uint64, uint128
@@ -81,7 +82,7 @@ class FullNode:
     sync_store: Any
     coin_store: CoinStore
     mempool_manager: MempoolManager
-    connection: aiosqlite.Connection
+    connection: Database
     _sync_task: Optional[asyncio.Task]
     _init_weight_proof: Optional[asyncio.Task] = None
     blockchain: Blockchain
@@ -155,7 +156,8 @@ class FullNode:
         # These many respond_transaction tasks can be active at any point in time
         self.respond_transaction_semaphore = asyncio.Semaphore(200)
         # create the store (db) and full node instance
-        self.connection = await aiosqlite.connect(self.db_path)
+        self.connection = create_database(str(self.db_path))
+        await self.connection.connect()
         await self.connection.execute("pragma journal_mode=wal")
 
         await self.connection.execute(

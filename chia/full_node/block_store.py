@@ -1,7 +1,7 @@
 import logging
+from databases import Database
 from typing import Dict, List, Optional, Tuple, Any
 
-import aiosqlite
 import zstd
 
 from chia.consensus.block_record import BlockRecord
@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 class BlockStore:
-    db: aiosqlite.Connection
+    db: Database
     block_cache: LRUCache
     db_wrapper: DBWrapper
     ses_challenge_cache: LRUCache
@@ -30,84 +30,92 @@ class BlockStore:
         self.db = db_wrapper.db
 
         if self.db_wrapper.db_version == 2:
-
-            # TODO: most data in block is duplicated in block_record. The only
-            # reason for this is that our parsing of a FullBlock is so slow,
-            # it's faster to store duplicate data to parse less when we just
-            # need the BlockRecord. Once we fix the parsing (and data structure)
-            # of FullBlock, this can use less space
-            await self.db.execute(
-                "CREATE TABLE IF NOT EXISTS full_blocks("
-                "header_hash blob PRIMARY KEY,"
-                "prev_hash blob,"
-                "height bigint,"
-                "sub_epoch_summary blob,"
-                "is_fully_compactified tinyint,"
-                "in_main_chain tinyint,"
-                "block blob,"
-                "block_record blob)"
-            )
-
-            # This is a single-row table containing the hash of the current
-            # peak. The "key" field is there to make update statements simple
-            await self.db.execute("CREATE TABLE IF NOT EXISTS current_peak(key int PRIMARY KEY, hash blob)")
-
-            await self.db.execute("CREATE INDEX IF NOT EXISTS height on full_blocks(height)")
-
-            # Sub epoch segments for weight proofs
-            await self.db.execute(
-                "CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3("
-                "ses_block_hash blob PRIMARY KEY,"
-                "challenge_segments blob)"
-            )
-
-            await self.db.execute(
-                "CREATE INDEX IF NOT EXISTS is_fully_compactified ON"
-                " full_blocks(is_fully_compactified, in_main_chain) WHERE in_main_chain=1"
-            )
-            await self.db.execute(
-                "CREATE INDEX IF NOT EXISTS main_chain ON full_blocks(height, in_main_chain) WHERE in_main_chain=1"
-            )
-
-        else:
-
-            await self.db.execute(
-                "CREATE TABLE IF NOT EXISTS full_blocks(header_hash text PRIMARY KEY, height bigint,"
-                "  is_block tinyint, is_fully_compactified tinyint, block blob)"
-            )
-
-            # Block records
-            await self.db.execute(
-                "CREATE TABLE IF NOT EXISTS block_records(header_hash "
-                "text PRIMARY KEY, prev_hash text, height bigint,"
-                "block blob, sub_epoch_summary blob, is_peak tinyint, is_block tinyint)"
-            )
-
-            # Sub epoch segments for weight proofs
-            await self.db.execute(
-                "CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3(ses_block_hash text PRIMARY KEY,"
-                "challenge_segments blob)"
-            )
-
-            # Height index so we can look up in order of height for sync purposes
-            await self.db.execute("CREATE INDEX IF NOT EXISTS full_block_height on full_blocks(height)")
-            await self.db.execute(
-                "CREATE INDEX IF NOT EXISTS is_fully_compactified on full_blocks(is_fully_compactified)"
-            )
-
-            await self.db.execute("CREATE INDEX IF NOT EXISTS height on block_records(height)")
-
-            if self.db_wrapper.allow_upgrades:
-                await self.db.execute("DROP INDEX IF EXISTS hh")
-                await self.db.execute("DROP INDEX IF EXISTS is_block")
-                await self.db.execute("DROP INDEX IF EXISTS peak")
+            transaction = await self.db.transaction()
+            try:
+                # TODO: most data in block is duplicated in block_record. The only
+                # reason for this is that our parsing of a FullBlock is so slow,
+                # it's faster to store duplicate data to parse less when we just
+                # need the BlockRecord. Once we fix the parsing (and data structure)
+                # of FullBlock, this can use less space
                 await self.db.execute(
-                    "CREATE INDEX IF NOT EXISTS is_peak_eq_1_idx on block_records(is_peak) where is_peak = 1"
+                    "CREATE TABLE IF NOT EXISTS full_blocks("
+                    "header_hash blob PRIMARY KEY,"
+                    "prev_hash blob,"
+                    "height bigint,"
+                    "sub_epoch_summary blob,"
+                    "is_fully_compactified tinyint,"
+                    "in_main_chain tinyint,"
+                    "block blob,"
+                    "block_record blob)"
                 )
-            else:
-                await self.db.execute("CREATE INDEX IF NOT EXISTS peak on block_records(is_peak) where is_peak = 1")
 
-        await self.db.commit()
+                # This is a single-row table containing the hash of the current
+                # peak. The "key" field is there to make update statements simple
+                await self.db.execute("CREATE TABLE IF NOT EXISTS current_peak(key int PRIMARY KEY, hash blob)")
+
+                await self.db.execute("CREATE INDEX IF NOT EXISTS height on full_blocks(height)")
+
+                # Sub epoch segments for weight proofs
+                await self.db.execute(
+                    "CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3("
+                    "ses_block_hash blob PRIMARY KEY,"
+                    "challenge_segments blob)"
+                )
+
+                await self.db.execute(
+                    "CREATE INDEX IF NOT EXISTS is_fully_compactified ON"
+                    " full_blocks(is_fully_compactified, in_main_chain) WHERE in_main_chain=1"
+                )
+                await self.db.execute(
+                    "CREATE INDEX IF NOT EXISTS main_chain ON full_blocks(height, in_main_chain) WHERE in_main_chain=1"
+                )
+            except:
+                await transaction.rollback()
+            else:
+                await transaction.commit()
+        else:
+            transaction = await self.db.transaction()
+            try:
+
+                await self.db.execute(
+                    "CREATE TABLE IF NOT EXISTS full_blocks(header_hash text PRIMARY KEY, height bigint,"
+                    "  is_block tinyint, is_fully_compactified tinyint, block blob)"
+                )
+
+                # Block records
+                await self.db.execute(
+                    "CREATE TABLE IF NOT EXISTS block_records(header_hash "
+                    "text PRIMARY KEY, prev_hash text, height bigint,"
+                    "block blob, sub_epoch_summary blob, is_peak tinyint, is_block tinyint)"
+                )
+
+                # Sub epoch segments for weight proofs
+                await self.db.execute(
+                    "CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3(ses_block_hash text PRIMARY KEY,"
+                    "challenge_segments blob)"
+                )
+
+                # Height index so we can look up in order of height for sync purposes
+                await self.db.execute("CREATE INDEX IF NOT EXISTS full_block_height on full_blocks(height)")
+                await self.db.execute(
+                    "CREATE INDEX IF NOT EXISTS is_fully_compactified on full_blocks(is_fully_compactified)"
+                )
+
+                await self.db.execute("CREATE INDEX IF NOT EXISTS height on block_records(height)")
+
+                if self.db_wrapper.allow_upgrades:
+                    await self.db.execute("DROP INDEX IF EXISTS hh")
+                    await self.db.execute("DROP INDEX IF EXISTS is_block")
+                    await self.db.execute("DROP INDEX IF EXISTS peak")
+                    await self.db.execute(
+                        "CREATE INDEX IF NOT EXISTS is_peak_eq_1_idx on block_records(is_peak) where is_peak = 1"
+                    )
+                else:
+                    await self.db.execute("CREATE INDEX IF NOT EXISTS peak on block_records(is_peak) where is_peak = 1")
+            except:
+                await transaction.rollback()
+            else:
+                await transaction.commit()
         self.block_cache = LRUCache(1000)
         self.ses_challenge_cache = LRUCache(50)
         return self
@@ -141,7 +149,7 @@ class BlockStore:
 
     async def set_in_chain(self, header_hashes: List[Tuple[bytes32]]) -> None:
         if self.db_wrapper.db_version == 2:
-            await self.db.executemany(
+            await self.db.execute_many(
                 "UPDATE OR FAIL full_blocks SET in_main_chain=1 WHERE header_hash=?", header_hashes
             )
 

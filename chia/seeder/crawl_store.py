@@ -4,9 +4,8 @@ import ipaddress
 import logging
 import random
 import time
+from databases import Database
 from typing import List, Dict
-
-import aiosqlite
 
 from chia.seeder.peer_record import PeerRecord, PeerReliability
 
@@ -14,7 +13,7 @@ log = logging.getLogger(__name__)
 
 
 class CrawlStore:
-    crawl_db: aiosqlite.Connection
+    crawl_db: Database
     last_timestamp: int
     lock: asyncio.Lock
 
@@ -26,7 +25,7 @@ class CrawlStore:
     reliable_peers: int
 
     @classmethod
-    async def create(cls, connection: aiosqlite.Connection):
+    async def create(cls, connection: Database):
         self = cls()
 
         self.crawl_db = connection
@@ -63,7 +62,7 @@ class CrawlStore:
 
         try:
             await self.crawl_db.execute("ALTER TABLE peer_records ADD COLUMN tls_version text")
-        except aiosqlite.OperationalError:
+        except:
             pass  # ignore what is likely Duplicate column error
 
         await self.crawl_db.execute(("CREATE TABLE IF NOT EXISTS good_peers(ip text)"))

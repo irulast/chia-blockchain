@@ -3,14 +3,13 @@ from os import path
 from pathlib import Path
 from typing import List
 
-import aiosqlite
-
 from chia.consensus.blockchain import Blockchain
 from chia.consensus.constants import ConsensusConstants
 from chia.full_node.block_store import BlockStore
 from chia.full_node.coin_store import CoinStore
 from chia.full_node.hint_store import HintStore
 from chia.types.full_block import FullBlock
+from chia.util.db_factory import create_database
 from chia.util.db_wrapper import DBWrapper
 from chia.util.path import mkdir
 
@@ -25,7 +24,8 @@ async def create_blockchain(constants: ConsensusConstants, db_version: int):
     if db_path.exists():
         db_path.unlink()
     blockchain_db_counter += 1
-    connection = await aiosqlite.connect(db_path)
+    connection = create_database(str(db_path))
+    await connection.connect()
     wrapper = DBWrapper(connection, False, db_version)
     coin_store = await CoinStore.create(wrapper)
     store = await BlockStore.create(wrapper)

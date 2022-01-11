@@ -1,5 +1,4 @@
-import aiosqlite
-
+from databases import Database
 from typing import Optional, List, Dict, Tuple, Any
 
 from chia.types.blockchain_format.sized_bytes import bytes32
@@ -54,7 +53,7 @@ class SimBlockRecord:
 
 class SpendSim:
 
-    connection: aiosqlite.Connection
+    connection: Database
     mempool_manager: MempoolManager
     block_records: List[SimBlockRecord]
     blocks: List[SimFullBlock]
@@ -65,7 +64,8 @@ class SpendSim:
     @classmethod
     async def create(cls, defaults=DEFAULT_CONSTANTS):
         self = cls()
-        self.connection = await aiosqlite.connect(":memory:")
+        self.connection = Database("sqlite:///:memory:")
+        await self.connection.connect()
         coin_store = await CoinStore.create(DBWrapper(self.connection))
         self.mempool_manager = MempoolManager(coin_store, defaults)
         self.block_records = []
@@ -76,7 +76,7 @@ class SpendSim:
         return self
 
     async def close(self):
-        await self.connection.close()
+        await self.connection.disconnect()
 
     async def new_peak(self):
         await self.mempool_manager.new_peak(self.block_records[-1], [])

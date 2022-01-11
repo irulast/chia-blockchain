@@ -3,7 +3,6 @@ from pathlib import Path
 from secrets import token_bytes
 from typing import Optional
 
-import aiosqlite
 import pytest
 from clvm_tools import binutils
 
@@ -11,6 +10,7 @@ from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.program import Program, SerializedProgram
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_spend import CoinSpend
+from chia.util.db_factory import create_database
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint64
 
@@ -50,7 +50,8 @@ class TestWalletPoolStore:
         if db_filename.exists():
             db_filename.unlink()
 
-        db_connection = await aiosqlite.connect(db_filename)
+        db_connection = create_database(str(db_filename))
+        await db_connection.connect()
         db_wrapper = DBWrapper(db_connection)
         store = await WalletPoolStore.create(db_wrapper)
         try:

@@ -1,7 +1,6 @@
+from databases import Database
 from typing import Tuple
 from pathlib import Path
-
-import aiosqlite
 
 from chia.consensus.blockchain import Blockchain
 from chia.consensus.constants import ConsensusConstants
@@ -12,7 +11,8 @@ from chia.util.db_wrapper import DBWrapper
 
 
 async def create_ram_blockchain(consensus_constants: ConsensusConstants) -> Tuple[aiosqlite.Connection, Blockchain]:
-    connection = await aiosqlite.connect(":memory:")
+    connection = Database("sqlite:///:memory:")
+    await connection.connect()
     db_wrapper = DBWrapper(connection)
     block_store = await BlockStore.create(db_wrapper)
     coin_store = await CoinStore.create(db_wrapper)

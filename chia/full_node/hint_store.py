@@ -1,5 +1,5 @@
 from typing import List, Tuple
-import aiosqlite
+from databases import Database
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.util.db_wrapper import DBWrapper
 import logging
@@ -8,7 +8,7 @@ log = logging.getLogger(__name__)
 
 
 class HintStore:
-    coin_record_db: aiosqlite.Connection
+    coin_record_db: Database
     db_wrapper: DBWrapper
 
     @classmethod
@@ -20,7 +20,6 @@ class HintStore:
             "CREATE TABLE IF NOT EXISTS hints(id INTEGER PRIMARY KEY AUTOINCREMENT, coin_id blob,  hint blob)"
         )
         await self.coin_record_db.execute("CREATE INDEX IF NOT EXISTS hint_index on hints(hint)")
-        await self.coin_record_db.commit()
         return self
 
     async def get_coin_ids(self, hint: bytes) -> List[bytes32]:

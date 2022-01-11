@@ -2,15 +2,16 @@ import asyncio
 import base64
 import json
 import logging
+import os
 import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-import aiosqlite
 from blspy import AugSchemeMPL, G1Element, PrivateKey
 from chiabip158 import PyBIP158
 from cryptography.fernet import Fernet
+from databases import Database
 
 from chia import __version__
 from chia.consensus.block_record import BlockRecord
@@ -33,6 +34,7 @@ from chia.util.db_wrapper import DBWrapper
 from chia.util.errors import Err
 from chia.util.hash import std_hash
 from chia.util.ints import uint32, uint64, uint128
+from chia.util.db_factory import create_database
 from chia.util.db_synchronous import db_synchronous_on
 from chia.wallet.block_record import HeaderBlockRecord
 from chia.wallet.cc_wallet.cc_wallet import CCWallet
@@ -98,7 +100,7 @@ class WalletStateManager:
     puzzle_hash_created_callbacks: Dict = defaultdict(lambda *x: None)
     new_peak_callbacks: Dict = defaultdict(lambda *x: None)
     db_path: Path
-    db_connection: aiosqlite.Connection
+    db_connection: Database
     db_wrapper: DBWrapper
 
     main_wallet: Wallet
@@ -135,13 +137,16 @@ class WalletStateManager:
         self.root_path = root_path
         self.log = logging.getLogger(name if name else __name__)
         self.lock = asyncio.Lock()
-        self.log.debug(f"Starting in db path: {db_path}")
-        self.db_connection = await aiosqlite.connect(db_path)
-        await self.db_connection.execute("pragma journal_mode=wal")
+        if os.environ.get("CHIA_DB_CONNECTION", None) is not None:
+            self.log.debug(f"Starting in db path: {db_path}")
+        self.db_connection = create_database(str(db_path))
+        await self.db_connection.connect()
+        if self.db_connection.url.dialect == "sqlite":
+            await self.db_connection.execute("pragma journal_mode=wal")
 
-        await self.db_connection.execute(
-            "pragma synchronous={}".format(db_synchronous_on(self.config.get("db_sync", "auto"), db_path))
-        )
+            await self.db_connection.execute(
+                "pragma synchronous={}".format(db_synchronous_on(self.config.get("db_sync", "auto"), db_path))
+            )
 
         self.db_wrapper = DBWrapper(self.db_connection)
         self.coin_store = await WalletCoinStore.create(self.db_wrapper)

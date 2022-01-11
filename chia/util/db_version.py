@@ -1,7 +1,7 @@
-import aiosqlite
+from databases import Database
 
 
-async def lookup_db_version(db: aiosqlite.Connection) -> int:
+async def lookup_db_version(db: Database) -> int:
     try:
         cursor = await db.execute("SELECT * from database_version")
         row = await cursor.fetchone()
@@ -9,6 +9,6 @@ async def lookup_db_version(db: aiosqlite.Connection) -> int:
             return 2
         else:
             return 1
-    except aiosqlite.OperationalError:
+    except Exception:
         # expects OperationalError('no such table: database_version')
         return 1
