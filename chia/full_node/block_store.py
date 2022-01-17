@@ -144,13 +144,13 @@ class BlockStore:
     async def rollback(self, height: int) -> None:
         if self.db_wrapper.db_version == 2:
             await self.db.execute(
-                "UPDATE OR FAIL full_blocks SET in_main_chain=0 WHERE height>? AND in_main_chain=1", (height,)
+                "UPDATE OR FAIL full_blocks SET in_main_chain=0 WHERE height>:height AND in_main_chain=1", {"height": height}
             )
 
     async def set_in_chain(self, header_hashes: List[Tuple[bytes32]]) -> None:
         if self.db_wrapper.db_version == 2:
             await self.db.execute_many(
-                "UPDATE OR FAIL full_blocks SET in_main_chain=1 WHERE header_hash=?", header_hashes
+                "UPDATE OR FAIL full_blocks SET in_main_chain=1 WHERE header_hash=:header_hash", map(lambda header_hash: {"header_hash": header_hash}, header_hashes)
             )
 
     async def add_full_block(self, header_hash: bytes32, block: FullBlock, block_record: BlockRecord) -> None:
@@ -165,44 +165,45 @@ class BlockStore:
             )
 
             await self.db.execute(
-                "INSERT OR REPLACE INTO full_blocks VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    header_hash,
-                    block.prev_header_hash,
-                    block.height,
-                    ses,
-                    int(block.is_fully_compactified()),
-                    0,  # in_main_chain
-                    self.compress(block),
-                    bytes(block_record),
-                ),
+                "INSERT OR REPLACE INTO full_blocks VALUES(:header_hash, :prev_header_hash, :height, :ses, :is_fully_compactified, :in_main_chain, :block, :block_record)",
+                {
+                    "header_hash": header_hash,
+                    "prev_header_hash": block.prev_header_hash,
+                    "height": block.height,
+                    "ses": ses,
+                    "is_fully_compactified": int(block.is_fully_compactified()),
+                    "in_main_chain": 0,  # in_main_chain
+                    "block": self.compress(block),
+                    "block_record": bytes(block_record),
+                },
             )
 
         else:
             await self.db.execute(
-                "INSERT OR REPLACE INTO full_blocks VALUES(?, ?, ?, ?, ?)",
-                (
-                    header_hash.hex(),
-                    block.height,
-                    int(block.is_transaction_block()),
-                    int(block.is_fully_compactified()),
-                    bytes(block),
-                ),
+                "INSERT OR REPLACE INTO full_blocks VALUES(:header_hash, :block, :is_transaction_block, :is_fully_compactified, :block)",
+                {
+                    "header_hash": header_hash.hex(),
+                    "height": block.height,
+                    "is_transaction_block": int(block.is_transaction_block()),
+                    "is_fully_compactified": int(block.is_fully_compactified()),
+                    "block": bytes(block),
+                },
             )
 
             await self.db.execute(
-                "INSERT OR REPLACE INTO block_records VALUES(?, ?, ?, ?,?, ?, ?)",
-                (
-                    header_hash.hex(),
-                    block.prev_header_hash.hex(),
-                    block.height,
-                    bytes(block_record),
-                    None
-                    if block_record.sub_epoch_summary_included is None
-                    else bytes(block_record.sub_epoch_summary_included),
-                    False,
-                    block.is_transaction_block(),
-                ),
+                "INSERT OR REPLACE INTO block_records VALUES(:header_hash, :prev_header_hash, :height, :block_record, :sub_epoch_summary_included, :is_peak, :is_transaction_block)",
+                {
+                    "header_hash": header_hash.hex(),
+                    "prev_header_hash": block.prev_header_hash.hex(),
+                    "height": block.height,
+                    "block_record": bytes(block_record),
+                    "sub_epoch_summary_included":
+                        None
+                        if block_record.sub_epoch_summary_included is None
+                        else bytes(block_record.sub_epoch_summary_included),
+                    "is_peak": False,
+                    "is_transaction_block": block.is_transaction_block(),
+                },
             )
 
     async def persist_sub_epoch_challenge_segments(
@@ -210,10 +211,9 @@ class BlockStore:
     ) -> None:
         async with self.db_wrapper.lock:
             await self.db.execute(
-                "INSERT OR REPLACE INTO sub_epoch_segments_v3 VALUES(?, ?)",
-                (self.maybe_to_hex(ses_block_hash), bytes(SubEpochSegments(segments))),
+                "INSERT OR REPLACE INTO sub_epoch_segments_v3 VALUES(:ses_block_hash, :segments)",
+                {"ses_block_hash": self.maybe_to_hex(ses_block_hash), "segments": bytes(SubEpochSegments(segments))},
             )
-            await self.db.commit()
 
     async def get_sub_epoch_challenge_segments(
         self,
@@ -223,11 +223,10 @@ class BlockStore:
         if cached is not None:
             return cached
 
-        async with self.db.execute(
-            "SELECT challenge_segments from sub_epoch_segments_v3 WHERE ses_block_hash=?",
-            (self.maybe_to_hex(ses_block_hash),),
-        ) as cursor:
-            row = await cursor.fetchone()
+        row = async self.db.fetch_one(
+            "SELECT challenge_segments from sub_epoch_segments_v3 WHERE ses_block_hash=:ses_block_hash",
+            {"ses_block_hash": self.maybe_to_hex(ses_block_hash)},
+        )
 
         if row is not None:
             challenge_segments = SubEpochSegments.from_bytes(row[0]).challenge_segments
@@ -249,10 +248,9 @@ class BlockStore:
             log.debug(f"cache hit for block {header_hash.hex()}")
             return cached
         log.debug(f"cache miss for block {header_hash.hex()}")
-        async with self.db.execute(
-            "SELECT block from full_blocks WHERE header_hash=?", (self.maybe_to_hex(header_hash),)
-        ) as cursor:
-            row = await cursor.fetchone()
+        row = async self.db.fetch_one(
+            "SELECT block from full_blocks WHERE header_hash=:header_hash", {"header_hash": self.maybe_to_hex(header_hash})
+        )
         if row is not None:
             block = self.maybe_decompress(row[0])
             self.block_cache.put(header_hash, block)
@@ -265,10 +263,9 @@ class BlockStore:
             log.debug(f"cache hit for block {header_hash.hex()}")
             return bytes(cached)
         log.debug(f"cache miss for block {header_hash.hex()}")
-        async with self.db.execute(
-            "SELECT block from full_blocks WHERE header_hash=?", (self.maybe_to_hex(header_hash),)
-        ) as cursor:
-            row = await cursor.fetchone()
+        row = async self.db.fetch_one(
+            "SELECT block from full_blocks WHERE header_hash=:header_hash", {"header_hash": self.maybe_to_hex(header_hash})
+        )
         if row is not None:
             if self.db_wrapper.db_version == 2:
                 return zstd.decompress(row[0])

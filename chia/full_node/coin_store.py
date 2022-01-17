@@ -156,18 +156,17 @@ class CoinStore:
         cached = self.coin_record_cache.get(coin_name)
         if cached is not None:
             return cached
-
-        async with self.coin_record_db.execute(
+        row = await self.coin_record_db.fetch_one(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            "coin_parent, amount, timestamp FROM coin_record WHERE coin_name=?",
-            (self.maybe_to_hex(coin_name),),
-        ) as cursor:
-            row = await cursor.fetchone()
-            if row is not None:
-                coin = self.row_to_coin(row)
-                record = CoinRecord(coin, row[0], row[1], row[2], row[6])
-                self.coin_record_cache.put(record.coin.name(), record)
-                return record
+            "coin_parent, amount, timestamp FROM coin_record WHERE coin_name= :coin_name",
+            {"coin_name": self.maybe_to_hex(coin_name)}
+        )
+        if row is not None:
+            coin = self.row_to_coin(row)
+            record = CoinRecord(coin, row[0], row[1], row[2], row[6])
+            self.coin_record_cache.put(record.coin.name(), record)
+            return record
+
         return None
 
     async def get_coins_added_at_height(self, height: uint32) -> List[CoinRecord]:
