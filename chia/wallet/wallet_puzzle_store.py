@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import List, Optional, Set, Tuple
 
-import aiosqlite
+from databases import Database
 from blspy import G1Element
 
 from chia.types.blockchain_format.sized_bytes import bytes32
@@ -21,7 +21,8 @@ class WalletPuzzleStore:
     WalletInterestedStore to keep track of puzzle hashes which we are interested in.
     """
 
-    db_connection: aiosqlite.Connection
+    # Changed
+    db_connection: Database
     lock: asyncio.Lock
     cache_size: uint32
     all_puzzle_hashes: Set[bytes32]
@@ -67,7 +68,7 @@ class WalletPuzzleStore:
         return self
 
     async def close(self):
-        await self.db_connection.close()
+        await self.db_connection.disconnect()
 
     async def _init_cache(self):
         self.all_puzzle_hashes = await self.get_all_puzzle_hashes()

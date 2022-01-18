@@ -1,18 +1,20 @@
-import aiosqlite
+from databases import Database
 
 from chia.server.address_manager import AddressManager, ExtendedPeerInfo, NEW_BUCKETS_PER_ADDRESS
+from chia.util.db_factory import create_database
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 Node = Tuple[int, ExtendedPeerInfo]
 Table = Tuple[int, int]
 
-
+# Changed (Really not sure about this one)
 async def create_address_manager_from_db(db_path: Path) -> Optional[AddressManager]:
+
     """
     Creates an AddressManager using data from the SQLite peer db
     """
-    async with aiosqlite.connect(db_path) as connection:
+    async with create_database(str(db_path)).connect() as connection:
         await connection.execute("pragma journal_mode=wal")
         await connection.execute("pragma synchronous=OFF")
 
@@ -26,22 +28,22 @@ async def create_address_manager_from_db(db_path: Path) -> Optional[AddressManag
 
         return address_manager
 
-
-async def get_metadata(connection: aiosqlite.Connection) -> Dict[str, str]:
+# Changed
+async def get_metadata(connection: Database) -> Dict[str, str]:
     cursor = await connection.execute("SELECT key, value from peer_metadata")
     metadata = await cursor.fetchall()
     await cursor.close()
     return {key: value for key, value in metadata}
 
-
-async def get_nodes(connection: aiosqlite.Connection) -> List[Node]:
+# Changed
+async def get_nodes(connection: Database) -> List[Node]:
     cursor = await connection.execute("SELECT node_id, value from peer_nodes")
     nodes_id = await cursor.fetchall()
     await cursor.close()
     return [(node_id, ExtendedPeerInfo.from_string(info_str)) for node_id, info_str in nodes_id]
 
-
-async def get_new_table(connection: aiosqlite.Connection) -> List[Table]:
+# Changed
+async def get_new_table(connection: Database) -> List[Table]:
     cursor = await connection.execute("SELECT node_id, bucket from peer_new_table")
     entries = await cursor.fetchall()
     await cursor.close()

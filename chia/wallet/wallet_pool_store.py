@@ -1,7 +1,7 @@
 import logging
 from typing import List, Tuple, Dict, Optional
 
-import aiosqlite
+from databases import Database
 
 from chia.types.coin_spend import CoinSpend
 from chia.util.db_wrapper import DBWrapper
@@ -11,7 +11,8 @@ log = logging.getLogger(__name__)
 
 
 class WalletPoolStore:
-    db_connection: aiosqlite.Connection
+    # Changed
+    db_connection: Database
     db_wrapper: DBWrapper
     _state_transitions_cache: Dict[int, List[Tuple[uint32, CoinSpend]]]
 

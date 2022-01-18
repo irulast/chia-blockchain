@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-import aiosqlite
+from databases import Database
 
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32
@@ -13,7 +13,8 @@ class WalletUserStore:
     WalletUserStore keeps track of all user created wallets and necessary smart-contract data
     """
 
-    db_connection: aiosqlite.Connection
+    # Changed
+    db_connection: Database
     cache_size: uint32
     db_wrapper: DBWrapper
 

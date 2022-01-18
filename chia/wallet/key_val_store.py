@@ -1,6 +1,6 @@
 from typing import Any
 
-import aiosqlite
+from databases import Database
 
 from chia.util.byte_types import hexstr_to_bytes
 from chia.util.db_wrapper import DBWrapper
@@ -12,7 +12,8 @@ class KeyValStore:
     Multipurpose persistent key-value store
     """
 
-    db_connection: aiosqlite.Connection
+    #Changed
+    db_connection: Database
     db_wrapper: DBWrapper
 
     @classmethod
@@ -34,6 +35,7 @@ class KeyValStore:
         await cursor.close()
         await self.db_connection.commit()
 
+    # Would this get a @classmethod tag as well?
     async def get_object(self, key: str, type: Any) -> Any:
         """
         Return bytes representation of stored object

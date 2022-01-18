@@ -1,6 +1,6 @@
 from typing import List, Tuple, Optional
 
-import aiosqlite
+from databases import Database
 
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.util.db_wrapper import DBWrapper
@@ -10,8 +10,8 @@ class WalletInterestedStore:
     """
     Stores coin ids that we are interested in receiving
     """
-
-    db_connection: aiosqlite.Connection
+    #Changed
+    db_connection: Database
     db_wrapper: DBWrapper
 
     @classmethod

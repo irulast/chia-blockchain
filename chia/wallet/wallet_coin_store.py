@@ -1,6 +1,5 @@
 from typing import Dict, List, Optional, Set
 
-import aiosqlite
 import sqlite3
 
 from chia.types.blockchain_format.coin import Coin
@@ -9,6 +8,7 @@ from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32, uint64
 from chia.wallet.util.wallet_types import WalletType
 from chia.wallet.wallet_coin_record import WalletCoinRecord
+from databases import Database
 
 
 class WalletCoinStore:
@@ -16,7 +16,8 @@ class WalletCoinStore:
     This object handles CoinRecords in DB used by wallet.
     """
 
-    db_connection: aiosqlite.Connection
+    #Changed
+    db_connection: Database
     # coin_record_cache keeps ALL coin records in memory. [record_name: record]
     coin_record_cache: Dict[bytes32, WalletCoinRecord]
     # unspent_coin_wallet_cache keeps ALL unspent coin records for wallet in memory [wallet_id: [record_name: record]]
@@ -58,7 +59,7 @@ class WalletCoinStore:
 
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS wallet_id on coin_record(wallet_id)")
 
-        await self.db_connection.commit()
+        #await self.db_connection.commit()
         self.coin_record_cache = {}
         self.unspent_coin_wallet_cache = {}
         await self.rebuild_wallet_cache()

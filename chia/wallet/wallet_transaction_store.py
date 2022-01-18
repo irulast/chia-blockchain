@@ -1,7 +1,7 @@
 import time
 from typing import Dict, List, Optional, Tuple
 
-import aiosqlite
+from databases import Database
 
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.mempool_inclusion_status import MempoolInclusionStatus
@@ -17,8 +17,8 @@ class WalletTransactionStore:
     """
     WalletTransactionStore stores transaction history for the wallet.
     """
-
-    db_connection: aiosqlite.Connection
+    # Changed
+    db_connection: Database
     db_wrapper: DBWrapper
     tx_record_cache: Dict[bytes32, TransactionRecord]
     tx_submitted: Dict[bytes32, Tuple[int, int]]  # tx_id: [time submitted: count]

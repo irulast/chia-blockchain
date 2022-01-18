@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-import aiosqlite
+from databases import Database
 
 from chia.consensus.block_record import BlockRecord
 from chia.types.blockchain_format.sized_bytes import bytes32
@@ -26,7 +26,7 @@ class WalletBlockStore:
     This object handles HeaderBlocks and Blocks stored in DB used by wallet.
     """
 
-    db: aiosqlite.Connection
+    db: Database
     db_wrapper: DBWrapper
     block_cache: LRUCache
 
@@ -63,14 +63,14 @@ class WalletBlockStore:
 
         await self.db.execute("CREATE INDEX IF NOT EXISTS hh on block_records(header_hash)")
         await self.db.execute("CREATE INDEX IF NOT EXISTS peak on block_records(is_peak)")
-        await self.db.commit()
+        #await self.db.commit()
         self.block_cache = LRUCache(1000)
         return self
 
     async def _clear_database(self):
         cursor_2 = await self.db.execute("DELETE FROM header_blocks")
         await cursor_2.close()
-        await self.db.commit()
+        # await self.db.commit()
 
     async def add_block_record(
         self,

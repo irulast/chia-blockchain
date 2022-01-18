@@ -1,6 +1,7 @@
 from typing import List, Optional
 
-import aiosqlite
+
+from databases import Database
 
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.mempool_inclusion_status import MempoolInclusionStatus
@@ -16,7 +17,7 @@ class TradeStore:
     TradeStore stores trading history.
     """
 
-    db_connection: aiosqlite.Connection
+    db_connection: Database
     cache_size: uint32
     db_wrapper: DBWrapper
 
