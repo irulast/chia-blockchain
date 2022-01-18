@@ -398,7 +398,7 @@ class BlockStore:
             formatted_str = f"SELECT header_hash, block from block_records WHERE height >= {start} and height <= {stop}"
 
             rows = await self.db.fetch_all(formatted_str)
-            for row in await rows:
+            for row in rows:
                 header_hash = bytes32(self.maybe_from_hex(row[0]))
                 ret[header_hash] = BlockRecord.from_bytes(row[1])
 
