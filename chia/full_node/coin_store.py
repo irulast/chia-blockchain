@@ -447,18 +447,18 @@ class CoinStore:
             for record in records:
                 self.coin_record_cache.put(record.coin.name(), record)
                 values2.append(
-                    (
-                        record.coin.name(),
-                        record.confirmed_block_index,
-                        record.spent_block_index,
-                        int(record.coinbase),
-                        record.coin.puzzle_hash,
-                        record.coin.parent_coin_info,
-                        bytes(record.coin.amount),
-                        record.timestamp,
-                    )
+                    {
+                        "name": record.coin.name(),
+                        "confirmed_block_index": record.confirmed_block_index,
+                        "spent_block_index": record.spent_block_index,
+                        "coinbase": int(record.coinbase),
+                        "puzzle_hash": record.coin.puzzle_hash,
+                        "parent_coin_info": record.coin.parent_coin_info,
+                        "amount": bytes(record.coin.amount),
+                        "timestamp": record.timestamp,
+                    }
                 )
-            await self.coin_record_db.executemany(
+            await self.coin_record_db.execute_many(
                 "INSERT INTO coin_record VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
                 values2,
             )
