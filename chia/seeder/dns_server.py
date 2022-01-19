@@ -105,12 +105,11 @@ class DNSServer:
                 crawl_db = Database(str(self.db_path))
                 await crawl_db.connect()
                 # TODO: ajw ADD TIMEOUT crawl_db = await aiosqlite.connect(self.db_path, timeout=600)
-                cursor = await crawl_db.execute(
+                rows = await crawl_db.fetch_all(
                     "SELECT * from good_peers",
                 )
                 new_reliable_peers = []
-                rows = await cursor.fetchall()
-                await cursor.close()
+
                 await crawl_db.disconnect()
                 for row in rows:
                     new_reliable_peers.append(row[0])

@@ -1,8 +1,7 @@
 from typing import List, Optional
 
-import aiosqlite
-
 from chia.util.db_wrapper import DBWrapper
+from databases import Database
 from chia.util.ints import uint32
 from chia.wallet.util.wallet_types import WalletType
 from chia.wallet.wallet_action import WalletAction
@@ -14,7 +13,7 @@ class WalletActionStore:
     Used by Colored coins, Atomic swaps, Rate Limited, and Authorized payee wallets
     """
 
-    db_connection: aiosqlite.Connection
+    db_connection: Database
     cache_size: uint32
     db_wrapper: DBWrapper
 
@@ -47,18 +46,15 @@ class WalletActionStore:
         return self
 
     async def _clear_database(self):
-        cursor = await self.db_connection.execute("DELETE FROM action_queue")
-        await cursor.close()
-        await self.db_connection.commit()
+        await self.db_connection.execute("DELETE FROM action_queue")
+
 
     async def get_wallet_action(self, id: int) -> Optional[WalletAction]:
         """
         Return a wallet action by id
         """
 
-        cursor = await self.db_connection.execute("SELECT * from action_queue WHERE id=?", (id,))
-        row = await cursor.fetchone()
-        await cursor.close()
+        row = await self.db_connection.fetch_one("SELECT * from action_queue WHERE id=:id", {"id": id})
 
         if row is None:
             return None
@@ -74,11 +70,10 @@ class WalletActionStore:
         if not in_transaction:
             await self.db_wrapper.lock.acquire()
         try:
-            cursor = await self.db_connection.execute(
-                "INSERT INTO action_queue VALUES(?, ?, ?, ?, ?, ?, ?)",
-                (None, name, wallet_id, type, callback, done, data),
+            await self.db_connection.execute(
+                "INSERT INTO action_queue VALUES(:id, :name, :wallet_id, :wallet_type, :wallet_callback, :done, :data)",
+                {"id": None, "name":  name, "wallet_id":  wallet_id, "wallet_type":  type, "wallet_callback":  callback, "done":  done, "data":  data},
             )
-            await cursor.close()
         finally:
             if not in_transaction:
                 await self.db_connection.commit()
@@ -91,30 +86,25 @@ class WalletActionStore:
         action: Optional[WalletAction] = await self.get_wallet_action(action_id)
         assert action is not None
         async with self.db_wrapper.lock:
-            cursor = await self.db_connection.execute(
-                "Replace INTO action_queue VALUES(?, ?, ?, ?, ?, ?, ?)",
-                (
-                    action.id,
-                    action.name,
-                    action.wallet_id,
-                    action.type.value,
-                    action.wallet_callback,
-                    True,
-                    action.data,
-                ),
+            await self.db_connection.execute(
+                "Replace INTO action_queue VALUES(:id, :name, :wallet_id, :wallet_type, :wallet_callback, :done, :data)",
+                {
+                    "id": action.id,
+                    "name": action.name,
+                    "wallet_id": action.wallet_id,
+                    "wallet_type": action.type.value,
+                    "wallet_callback": action.wallet_callback,
+                    "done": True,
+                    "data": action.data,
+                }
             )
-
-            await cursor.close()
-            await self.db_connection.commit()
 
     async def get_all_pending_actions(self) -> List[WalletAction]:
         """
         Returns list of all pending action
         """
         result: List[WalletAction] = []
-        cursor = await self.db_connection.execute("SELECT * from action_queue WHERE done=?", (0,))
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db_connection.fetch_all("SELECT * from action_queue WHERE done=:done", {"done": 0})
 
         if rows is None:
             return result
@@ -130,9 +120,7 @@ class WalletActionStore:
         Return a wallet action by id
         """
 
-        cursor = await self.db_connection.execute("SELECT * from action_queue WHERE id=?", (id,))
-        row = await cursor.fetchone()
-        await cursor.close()
+        row = await self.db_connection.fetch_one("SELECT * from action_queue WHERE id=:id", {"id": id})
 
         if row is None:
             return None

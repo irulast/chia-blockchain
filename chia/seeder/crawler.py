@@ -334,4 +334,4 @@ class Crawler:
         self._shut_down = True
 
     async def _await_closed(self):
-        await self.connection.close()
+        await self.connection.disconnect()

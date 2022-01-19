@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import List, Optional, Set, Tuple
 
-import aiosqlite
+from databases import Database
 from blspy import G1Element
 
 from chia.types.blockchain_format.sized_bytes import bytes32
@@ -21,7 +21,7 @@ class WalletPuzzleStore:
     WalletInterestedStore to keep track of puzzle hashes which we are interested in.
     """
 
-    db_connection: aiosqlite.Connection
+    db_connection: Database
     lock: asyncio.Lock
     cache_size: uint32
     all_puzzle_hashes: Set[bytes32]
@@ -67,15 +67,13 @@ class WalletPuzzleStore:
         return self
 
     async def close(self):
-        await self.db_connection.close()
+        await self.db_connection.disconnect()
 
     async def _init_cache(self):
         self.all_puzzle_hashes = await self.get_all_puzzle_hashes()
 
     async def _clear_database(self):
-        cursor = await self.db_connection.execute("DELETE FROM derivation_paths")
-        await cursor.close()
-        await self.db_connection.commit()
+        await self.db_connection.execute("DELETE FROM derivation_paths")
 
     async def add_derivation_paths(self, records: List[DerivationRecord], in_transaction=False) -> None:
         """
@@ -89,22 +87,21 @@ class WalletPuzzleStore:
             for record in records:
                 self.all_puzzle_hashes.add(record.puzzle_hash)
                 sql_records.append(
-                    (
-                        record.index,
-                        bytes(record.pubkey).hex(),
-                        record.puzzle_hash.hex(),
-                        record.wallet_type,
-                        record.wallet_id,
-                        0,
-                    ),
+                    {
+                        "derivation_index": record.index,
+                        "pubkey": bytes(record.pubkey).hex(),
+                        "puzzle_hash": record.puzzle_hash.hex(),
+                        "wallet_type": record.wallet_type,
+                        "wallet_id": record.wallet_id,
+                        "used": 0,
+                    }
                 )
 
-            cursor = await self.db_connection.executemany(
-                "INSERT OR REPLACE INTO derivation_paths VALUES(?, ?, ?, ?, ?, ?)",
+            await self.db_connection.execute_many(
+                "INSERT OR REPLACE INTO derivation_paths VALUES(:derivation_index, :pubkey, :puzzle_hash, :wallet_type, :wallet_id, :used)",
                 sql_records,
             )
 
-            await cursor.close()
         finally:
             if not in_transaction:
                 await self.db_connection.commit()
@@ -114,15 +111,13 @@ class WalletPuzzleStore:
         """
         Returns the derivation record by index and wallet id.
         """
-        cursor = await self.db_connection.execute(
-            "SELECT * FROM derivation_paths WHERE derivation_index=? and wallet_id=?;",
-            (
-                index,
-                wallet_id,
-            ),
+        row = await self.db_connection.fetch_one(
+            "SELECT * FROM derivation_paths WHERE derivation_index=:derivation_index and wallet_id=:wallet_id;",
+            {
+                "derivation_index": index,
+                "wallet_id": wallet_id,
+            }
         )
-        row = await cursor.fetchone()
-        await cursor.close()
 
         if row is not None and row[0] is not None:
             return DerivationRecord(
@@ -139,12 +134,10 @@ class WalletPuzzleStore:
         """
         Returns the derivation record by index and wallet id.
         """
-        cursor = await self.db_connection.execute(
-            "SELECT * FROM derivation_paths WHERE puzzle_hash=?;",
-            (puzzle_hash.hex(),),
+        row = await self.db_connection.fetch_one(
+            "SELECT * FROM derivation_paths WHERE puzzle_hash=:puzzle_hash;",
+            {"puzzle_hash": puzzle_hash.hex()},
         )
-        row = await cursor.fetchone()
-        await cursor.close()
 
         if row is not None and row[0] is not None:
             return DerivationRecord(
@@ -165,11 +158,10 @@ class WalletPuzzleStore:
         if not in_transaction:
             await self.db_wrapper.lock.acquire()
         try:
-            cursor = await self.db_connection.execute(
-                "UPDATE derivation_paths SET used=1 WHERE derivation_index<=?",
-                (index,),
+            await self.db_connection.execute(
+                "UPDATE derivation_paths SET used=1 WHERE derivation_index<=:derivation_index",
+                {"derivation_index": index},
             )
-            await cursor.close()
         finally:
             if not in_transaction:
                 await self.db_connection.commit()
@@ -180,11 +172,9 @@ class WalletPuzzleStore:
         Checks if passed puzzle_hash is present in the db.
         """
 
-        cursor = await self.db_connection.execute(
-            "SELECT * from derivation_paths WHERE puzzle_hash=?", (puzzle_hash.hex(),)
+        row = await self.db_connection.fetch_one(
+            "SELECT * from derivation_paths WHERE puzzle_hash=:puzzle_hash", {"puzzle_hash": puzzle_hash.hex()}
         )
-        row = await cursor.fetchone()
-        await cursor.close()
 
         return row is not None
 
@@ -207,11 +197,9 @@ class WalletPuzzleStore:
         Returns None if not present.
         """
 
-        cursor = await self.db_connection.execute(
-            "SELECT * from derivation_paths WHERE pubkey=?", (bytes(pubkey).hex(),)
+        row = await self.db_connection.fetch_one(
+            "SELECT * from derivation_paths WHERE pubkey=:pubkey", {"pubkey": bytes(pubkey).hex()}
         )
-        row = await cursor.fetchone()
-        await cursor.close()
 
         if row is not None:
             return uint32(row[0])
@@ -223,11 +211,9 @@ class WalletPuzzleStore:
         Returns the derivation path for the puzzle_hash.
         Returns None if not present.
         """
-        cursor = await self.db_connection.execute(
-            "SELECT * from derivation_paths WHERE puzzle_hash=?", (puzzle_hash.hex(),)
+        row = await self.db_connection.fetch_one(
+            "SELECT * from derivation_paths WHERE puzzle_hash=:puzzle_hash", {"puzzle_hash": puzzle_hash.hex()}
         )
-        row = await cursor.fetchone()
-        await cursor.close()
 
         if row is not None:
             return uint32(row[0])
@@ -239,15 +225,13 @@ class WalletPuzzleStore:
         Returns the derivation path for the puzzle_hash.
         Returns None if not present.
         """
-        cursor = await self.db_connection.execute(
-            "SELECT * from derivation_paths WHERE puzzle_hash=? and wallet_id=?;",
-            (
-                puzzle_hash.hex(),
-                wallet_id,
-            ),
+        row = await self.db_connection.fetch_one(
+            "SELECT * from derivation_paths WHERE puzzle_hash=:puzzle_hash and wallet_id=:wallet_id;",
+            {
+                "puzzle_hash": puzzle_hash.hex(),
+                "wallet_id": wallet_id,
+            }
         )
-        row = await cursor.fetchone()
-        await cursor.close()
 
         if row is not None:
             return uint32(row[0])
@@ -260,11 +244,9 @@ class WalletPuzzleStore:
         Returns None if not present.
         """
 
-        cursor = await self.db_connection.execute(
-            "SELECT * from derivation_paths WHERE puzzle_hash=?", (puzzle_hash.hex(),)
+        row = await self.db_connection.fetch_one(
+            "SELECT * from derivation_paths WHERE puzzle_hash=:puzzle_hash", {"puzzle_hash": puzzle_hash.hex()}
         )
-        row = await cursor.fetchone()
-        await cursor.close()
 
         if row is not None:
             return row[4], WalletType(row[3])
@@ -276,9 +258,8 @@ class WalletPuzzleStore:
         Return a set containing all puzzle_hashes we generated.
         """
 
-        cursor = await self.db_connection.execute("SELECT * from derivation_paths")
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db_connection.fetch_all("SELECT * from derivation_paths")
+
         result: Set[bytes32] = set()
 
         for row in rows:
@@ -291,9 +272,7 @@ class WalletPuzzleStore:
         Returns the last derivation path by derivation_index.
         """
 
-        cursor = await self.db_connection.execute("SELECT MAX(derivation_index) FROM derivation_paths;")
-        row = await cursor.fetchone()
-        await cursor.close()
+        row = await self.db_connection.fetch_one("SELECT MAX(derivation_index) FROM derivation_paths;")
 
         if row is not None and row[0] is not None:
             return uint32(row[0])
@@ -305,11 +284,9 @@ class WalletPuzzleStore:
         Returns the last derivation path by derivation_index.
         """
 
-        cursor = await self.db_connection.execute(
+        row = await self.db_connection.fetch_one(
             f"SELECT MAX(derivation_index) FROM derivation_paths WHERE wallet_id={wallet_id};"
         )
-        row = await cursor.fetchone()
-        await cursor.close()
 
         if row is not None and row[0] is not None:
             return uint32(row[0])
@@ -321,11 +298,9 @@ class WalletPuzzleStore:
         Returns the current derivation record by derivation_index.
         """
 
-        cursor = await self.db_connection.execute(
+        row = await self.db_connection.fetch_one(
             f"SELECT MAX(derivation_index) FROM derivation_paths WHERE wallet_id={wallet_id} and used=1;"
         )
-        row = await cursor.fetchone()
-        await cursor.close()
 
         if row is not None and row[0] is not None:
             index = uint32(row[0])
@@ -337,9 +312,7 @@ class WalletPuzzleStore:
         """
         Returns the first unused derivation path by derivation_index.
         """
-        cursor = await self.db_connection.execute("SELECT MIN(derivation_index) FROM derivation_paths WHERE used=0;")
-        row = await cursor.fetchone()
-        await cursor.close()
+        row = await self.db_connection.fetch_one("SELECT MIN(derivation_index) FROM derivation_paths WHERE used=0;")
 
         if row is not None and row[0] is not None:
             return uint32(row[0])

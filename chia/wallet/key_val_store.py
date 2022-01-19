@@ -1,9 +1,8 @@
 from typing import Any
 
-import aiosqlite
-
 from chia.util.byte_types import hexstr_to_bytes
 from chia.util.db_wrapper import DBWrapper
+from databases import Database
 from chia.util.streamable import Streamable
 
 
@@ -12,7 +11,7 @@ class KeyValStore:
     Multipurpose persistent key-value store
     """
 
-    db_connection: aiosqlite.Connection
+    db_connection: Database
     db_wrapper: DBWrapper
 
     @classmethod
@@ -30,18 +29,14 @@ class KeyValStore:
         return self
 
     async def _clear_database(self):
-        cursor = await self.db_connection.execute("DELETE FROM key_val_store")
-        await cursor.close()
-        await self.db_connection.commit()
+        await self.db_connection.execute("DELETE FROM key_val_store")
 
     async def get_object(self, key: str, type: Any) -> Any:
         """
         Return bytes representation of stored object
         """
 
-        cursor = await self.db_connection.execute("SELECT * from key_val_store WHERE key=?", (key,))
-        row = await cursor.fetchone()
-        await cursor.close()
+        row = await self.db_connection.fetch_one("SELECT * from key_val_store WHERE key=:key", {"key": key})
 
         if row is None:
             return None
@@ -53,9 +48,8 @@ class KeyValStore:
         Adds object to key val store
         """
         async with self.db_wrapper.lock:
-            cursor = await self.db_connection.execute(
-                "INSERT OR REPLACE INTO key_val_store VALUES(?, ?)",
-                (key, bytes(obj).hex()),
+            await self.db_connection.execute(
+                "INSERT OR REPLACE INTO key_val_store VALUES(:key, :value)",
+                {"key": key, "value": bytes(obj).hex()},
             )
-            await cursor.close()
-            await self.db_connection.commit()
+

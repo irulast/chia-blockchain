@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-import aiosqlite
+from databases import Database
 
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.mempool_inclusion_status import MempoolInclusionStatus
@@ -16,7 +16,7 @@ class TradeStore:
     TradeStore stores trading history.
     """
 
-    db_connection: aiosqlite.Connection
+    db_connection: Database
     cache_size: uint32
     db_wrapper: DBWrapper
 
@@ -49,9 +49,7 @@ class TradeStore:
         return self
 
     async def _clear_database(self):
-        cursor = await self.db_connection.execute("DELETE FROM trade_records")
-        await cursor.close()
-        await self.db_connection.commit()
+        await self.db_connection.execute("DELETE FROM trade_records")
 
     async def add_trade_record(self, record: TradeRecord, in_transaction) -> None:
         """
@@ -60,18 +58,17 @@ class TradeStore:
         if not in_transaction:
             await self.db_wrapper.lock.acquire()
         try:
-            cursor = await self.db_connection.execute(
-                "INSERT OR REPLACE INTO trade_records VALUES(?, ?, ?, ?, ?, ?)",
-                (
-                    bytes(record),
-                    record.trade_id.hex(),
-                    record.status,
-                    record.confirmed_at_index,
-                    record.created_at_time,
-                    record.sent,
-                ),
+            await self.db_connection.execute(
+                "INSERT OR REPLACE INTO trade_records VALUES(:trade_record, :trade_id, :status, :confirmed_at_index, :created_at_time, :sent)",
+                {
+                    "trade_record": bytes(record),
+                    "trade_id": record.trade_id.hex(),
+                    "status": record.status,
+                    "confirmed_at_index": record.confirmed_at_index,
+                    "created_at_time": record.created_at_time,
+                    "sent": record.sent,
+                }
             )
-            await cursor.close()
         finally:
             if not in_transaction:
                 await self.db_connection.commit()
@@ -177,9 +174,7 @@ class TradeStore:
         """
         Checks DB for TradeRecord with id: id and returns it.
         """
-        cursor = await self.db_connection.execute("SELECT * from trade_records WHERE trade_id=?", (trade_id.hex(),))
-        row = await cursor.fetchone()
-        await cursor.close()
+        row = await self.db_connection.fetch_one("SELECT * from trade_records WHERE trade_id=:trade_id", {"trade_id": trade_id.hex()})
         if row is not None:
             record = TradeRecord.from_bytes(row[0])
             return record
@@ -189,9 +184,7 @@ class TradeStore:
         """
         Checks DB for TradeRecord with id: id and returns it.
         """
-        cursor = await self.db_connection.execute("SELECT * from trade_records WHERE status=?", (status.value,))
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db_connection.fetch_all("SELECT * from trade_records WHERE status=:status", {"status": status.value})
         records = []
         for row in rows:
             record = TradeRecord.from_bytes(row[0])
@@ -204,15 +197,13 @@ class TradeStore:
         Returns the list of trades that have not been received by full node yet.
         """
 
-        cursor = await self.db_connection.execute(
-            "SELECT * from trade_records WHERE sent<? and confirmed=?",
-            (
-                4,
-                0,
-            ),
+        rows = await self.db_connection.fetch_all(
+            "SELECT * from trade_records WHERE sent<:sent and confirmed=:confirmed",
+            {
+                "sent": 4,
+                "confirmed": 0,
+            }
         )
-        rows = await cursor.fetchall()
-        await cursor.close()
         records = []
         for row in rows:
             record = TradeRecord.from_bytes(row[0])
@@ -225,9 +216,7 @@ class TradeStore:
         Returns the list of all trades that have not yet been confirmed.
         """
 
-        cursor = await self.db_connection.execute("SELECT * from trade_records WHERE confirmed=?", (0,))
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db_connection.fetch_all("SELECT * from trade_records WHERE confirmed=confirmed", {"confirmed": 0})
         records = []
 
         for row in rows:
@@ -241,9 +230,7 @@ class TradeStore:
         Returns all stored trades.
         """
 
-        cursor = await self.db_connection.execute("SELECT * from trade_records")
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db_connection.fetch_all("SELECT * from trade_records")
         records = []
 
         for row in rows:
@@ -253,9 +240,7 @@ class TradeStore:
         return records
 
     async def get_trades_above(self, height: uint32) -> List[TradeRecord]:
-        cursor = await self.db_connection.execute("SELECT * from trade_records WHERE confirmed_at_index>?", (height,))
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db_connection.fetch_all("SELECT * from trade_records WHERE confirmed_at_index>:min_confirmed_at_index", {"min_confirmed_at_index": height})
         records = []
 
         for row in rows:
@@ -267,8 +252,6 @@ class TradeStore:
     async def rollback_to_block(self, block_index):
 
         # Delete from storage
-        cursor = await self.db_connection.execute(
-            "DELETE FROM trade_records WHERE confirmed_at_index>?", (block_index,)
+        await self.db_connection.execute(
+            "DELETE FROM trade_records WHERE confirmed_at_index>:min_confirmed_at_index", {"min_confirmed_at_index": block_index}
         )
-        await cursor.close()
-        await self.db_connection.commit()

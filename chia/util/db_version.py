@@ -3,8 +3,7 @@ from databases import Database
 
 async def lookup_db_version(db: Database) -> int:
     try:
-        cursor = await db.execute("SELECT * from database_version")
-        row = await cursor.fetchone()
+        row = await db.fetch_one("SELECT * from database_version")
         if row is not None and row[0] == 2:
             return 2
         else:

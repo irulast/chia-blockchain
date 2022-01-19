@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-import aiosqlite
+from databases import Database
 
 from chia.consensus.block_record import BlockRecord
 from chia.types.blockchain_format.sized_bytes import bytes32
@@ -26,7 +26,7 @@ class WalletBlockStore:
     This object handles HeaderBlocks and Blocks stored in DB used by wallet.
     """
 
-    db: aiosqlite.Connection
+    db: Database
     db_wrapper: DBWrapper
     block_cache: LRUCache
 
@@ -68,9 +68,7 @@ class WalletBlockStore:
         return self
 
     async def _clear_database(self):
-        cursor_2 = await self.db.execute("DELETE FROM header_blocks")
-        await cursor_2.close()
-        await self.db.commit()
+        await self.db.execute("DELETE FROM header_blocks")
 
     async def add_block_record(
         self,
@@ -92,51 +90,48 @@ class WalletBlockStore:
             timestamp = header_block_record.header.foliage_transaction_block.timestamp
         else:
             timestamp = uint64(0)
-        cursor = await self.db.execute(
-            "INSERT OR REPLACE INTO header_blocks VALUES(?, ?, ?, ?)",
-            (
-                header_block_record.header_hash.hex(),
-                header_block_record.height,
-                timestamp,
-                bytes(header_block_record),
-            ),
+        await self.db.execute(
+            "INSERT OR REPLACE INTO header_blocks VALUES(:header_hash, :height, :timestamp, :block)",
+            {
+                "header_hash": header_block_record.header_hash.hex(),
+                "height": header_block_record.height,
+                "timestamp": timestamp,
+                "block": bytes(header_block_record),
+            }
         )
 
-        await cursor.close()
-        cursor_2 = await self.db.execute(
-            "INSERT OR REPLACE INTO block_records VALUES(?, ?, ?, ?, ?, ?, ?,?)",
-            (
-                header_block_record.header.header_hash.hex(),
-                header_block_record.header.prev_header_hash.hex(),
-                header_block_record.header.height,
-                header_block_record.header.weight.to_bytes(128 // 8, "big", signed=False).hex(),
-                header_block_record.header.total_iters.to_bytes(128 // 8, "big", signed=False).hex(),
-                bytes(block_record),
-                None
-                if block_record.sub_epoch_summary_included is None
-                else bytes(block_record.sub_epoch_summary_included),
-                False,
-            ),
+        
+        await self.db.execute(
+            "INSERT OR REPLACE INTO block_records VALUES(:header_hash, :prev_hash, :height, :weight, :total_iters, :block, :sub_epoch_summary, :is_peak)",
+            {
+                "header_hash": header_block_record.header.header_hash.hex(),
+                "prev_hash": header_block_record.header.prev_header_hash.hex(),
+                "height": header_block_record.header.height,
+                "weight": header_block_record.header.weight.to_bytes(128 // 8, "big", signed=False).hex(),
+                "total_iters": header_block_record.header.total_iters.to_bytes(128 // 8, "big", signed=False).hex(),
+                "block": bytes(block_record),
+                "sub_epoch_summary": None
+                    if block_record.sub_epoch_summary_included is None
+                    else bytes(block_record.sub_epoch_summary_included),
+                "is_peak": False,
+            }
         )
-        await cursor_2.close()
+        
 
         if len(additional_coin_spends) > 0:
             blob: bytes = bytes(AdditionalCoinSpends(additional_coin_spends))
-            cursor_3 = await self.db.execute(
-                "INSERT OR REPLACE INTO additional_coin_spends VALUES(?, ?)",
-                (header_block_record.header_hash.hex(), blob),
+            await self.db.execute(
+                "INSERT OR REPLACE INTO additional_coin_spends VALUES(:header_hash, :spends_list_blob)",
+                {"header_hash": header_block_record.header_hash.hex(), "spends_list_blob":  blob},
             )
-            await cursor_3.close()
 
     async def get_header_block_at(self, heights: List[uint32]) -> List[HeaderBlock]:
         if len(heights) == 0:
             return []
 
         heights_db = tuple(heights)
-        formatted_str = f'SELECT block from header_blocks WHERE height in ({"?," * (len(heights_db) - 1)}?)'
-        cursor = await self.db.execute(formatted_str, heights_db)
-        rows = await cursor.fetchall()
-        await cursor.close()
+        formatted_str = f'SELECT block from header_blocks WHERE height in :heights'
+        rows = await self.db.fetch_all(formatted_str, {"heights": heights_db})
         return [HeaderBlock.from_bytes(row[0]) for row in rows]
 
     async def get_header_block_record(self, header_hash: bytes32) -> Optional[HeaderBlockRecord]:
@@ -144,9 +139,8 @@ class WalletBlockStore:
         cached = self.block_cache.get(header_hash)
         if cached is not None:
             return cached
-        cursor = await self.db.execute("SELECT block from header_blocks WHERE header_hash=?", (header_hash.hex(),))
-        row = await cursor.fetchone()
-        await cursor.close()
+        row = await self.db.fetch_one("SELECT block from header_blocks WHERE header_hash=:header_hash", {"header_hash": header_hash.hex()})
+
         if row is not None:
             hbr: HeaderBlockRecord = HeaderBlockRecord.from_bytes(row[0])
             self.block_cache.put(hbr.header_hash, hbr)
@@ -155,11 +149,10 @@ class WalletBlockStore:
             return None
 
     async def get_additional_coin_spends(self, header_hash: bytes32) -> Optional[List[CoinSpend]]:
-        cursor = await self.db.execute(
-            "SELECT spends_list_blob from additional_coin_spends WHERE header_hash=?", (header_hash.hex(),)
+        row = await self.db.fetch_one(
+            "SELECT spends_list_blob from additional_coin_spends WHERE header_hash=:header_hash", {"header_hash": header_hash.hex()}
         )
-        row = await cursor.fetchone()
-        await cursor.close()
+
         if row is not None:
             coin_spends: AdditionalCoinSpends = AdditionalCoinSpends.from_bytes(row[0])
             return coin_spends.coin_spends_list
@@ -167,12 +160,10 @@ class WalletBlockStore:
             return None
 
     async def get_block_record(self, header_hash: bytes32) -> Optional[BlockRecord]:
-        cursor = await self.db.execute(
-            "SELECT block from block_records WHERE header_hash=?",
-            (header_hash.hex(),),
+        row = await self.db.fetch_one(
+            "SELECT block from block_records WHERE header_hash=:header_hash",
+            {"header_hash": header_hash.hex()},
         )
-        row = await cursor.fetchone()
-        await cursor.close()
         if row is not None:
             return BlockRecord.from_bytes(row[0])
         return None
@@ -184,9 +175,7 @@ class WalletBlockStore:
         Returns a dictionary with all blocks, as well as the header hash of the peak,
         if present.
         """
-        cursor = await self.db.execute("SELECT header_hash, block, is_peak from block_records")
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db.fetch_all("SELECT header_hash, block, is_peak from block_records")
         ret: Dict[bytes32, BlockRecord] = {}
         peak: Optional[bytes32] = None
         for row in rows:
@@ -202,13 +191,11 @@ class WalletBlockStore:
         self.block_cache.remove(header_hash)
 
     async def set_peak(self, header_hash: bytes32) -> None:
-        cursor_1 = await self.db.execute("UPDATE block_records SET is_peak=0 WHERE is_peak=1")
-        await cursor_1.close()
-        cursor_2 = await self.db.execute(
-            "UPDATE block_records SET is_peak=1 WHERE header_hash=?",
-            (header_hash.hex(),),
+        await self.db.execute("UPDATE block_records SET is_peak=0 WHERE is_peak=1")
+        await self.db.execute(
+            "UPDATE block_records SET is_peak=1 WHERE header_hash=:header_hash",
+            {"header_hash": header_hash.hex()},
         )
-        await cursor_2.close()
 
     async def get_block_records_close_to_peak(
         self, blocks_n: int
@@ -218,18 +205,14 @@ class WalletBlockStore:
         if present.
         """
 
-        res = await self.db.execute("SELECT header_hash, height from block_records WHERE is_peak = 1")
-        row = await res.fetchone()
-        await res.close()
+        row = await self.db.fetch_one("SELECT header_hash, height from block_records WHERE is_peak = 1")
         if row is None:
             return {}, None
         header_hash_bytes, peak_height = row
         peak: bytes32 = bytes32(bytes.fromhex(header_hash_bytes))
 
         formatted_str = f"SELECT header_hash, block from block_records WHERE height >= {peak_height - blocks_n}"
-        cursor = await self.db.execute(formatted_str)
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db.fetch_all(formatted_str)
         ret: Dict[bytes32, BlockRecord] = {}
         for row in rows:
             header_hash_bytes, block_record_bytes = row
@@ -245,9 +228,7 @@ class WalletBlockStore:
 
         formatted_str = f"SELECT header_hash, block from header_blocks WHERE height >= {start} and height <= {stop}"
 
-        cursor = await self.db.execute(formatted_str)
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db.fetch_all(formatted_str)
         ret: Dict[bytes32, HeaderBlock] = {}
         for row in rows:
             header_hash_bytes, block_record_bytes = row
@@ -268,9 +249,7 @@ class WalletBlockStore:
 
         formatted_str = f"SELECT header_hash, block from block_records WHERE height >= {start} and height <= {stop}"
 
-        cursor = await self.db.execute(formatted_str)
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db.fetch_all(formatted_str)
         ret: Dict[bytes32, BlockRecord] = {}
         for row in rows:
             header_hash_bytes, block_record_bytes = row
@@ -285,16 +264,12 @@ class WalletBlockStore:
         if present.
         """
 
-        res = await self.db.execute("SELECT header_hash from block_records WHERE is_peak = 1")
-        row = await res.fetchone()
-        await res.close()
+        row = await self.db.fetch_one("SELECT header_hash from block_records WHERE is_peak = 1")
         if row is None:
             return {}, {}
 
         peak: bytes32 = bytes32.fromhex(row[0])
-        cursor = await self.db.execute("SELECT header_hash,prev_hash,height,sub_epoch_summary from block_records")
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db.fetch_all("SELECT header_hash,prev_hash,height,sub_epoch_summary from block_records")
         hash_to_prev_hash: Dict[bytes32, bytes32] = {}
         hash_to_height: Dict[bytes32, uint32] = {}
         hash_to_summary: Dict[bytes32, SubEpochSummary] = {}

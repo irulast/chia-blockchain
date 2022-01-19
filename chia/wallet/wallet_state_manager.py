@@ -1062,7 +1062,7 @@ class WalletStateManager:
     async def close_all_stores(self) -> None:
         if self.blockchain is not None:
             self.blockchain.shut_down()
-        await self.db_connection.close()
+        await self.db_connection.disconnect()
 
     async def clear_all_stores(self):
         await self.coin_store._clear_database()

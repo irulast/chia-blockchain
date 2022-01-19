@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Set
 
-import aiosqlite
+from databases import Database
 import sqlite3
 
 from chia.types.blockchain_format.coin import Coin
@@ -16,7 +16,7 @@ class WalletCoinStore:
     This object handles CoinRecords in DB used by wallet.
     """
 
-    db_connection: aiosqlite.Connection
+    db_connection: Database
     # coin_record_cache keeps ALL coin records in memory. [record_name: record]
     coin_record_cache: Dict[bytes32, WalletCoinRecord]
     # unspent_coin_wallet_cache keeps ALL unspent coin records for wallet in memory [wallet_id: [record_name: record]]
@@ -58,16 +58,13 @@ class WalletCoinStore:
 
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS wallet_id on coin_record(wallet_id)")
 
-        await self.db_connection.commit()
         self.coin_record_cache = {}
         self.unspent_coin_wallet_cache = {}
         await self.rebuild_wallet_cache()
         return self
 
     async def _clear_database(self):
-        cursor = await self.db_connection.execute("DELETE FROM coin_record")
-        await cursor.close()
-        await self.db_connection.commit()
+        await self.db_connection.execute("DELETE FROM coin_record")
 
     async def rebuild_wallet_cache(self):
         # First update all coins that were reorged, then re-add coin_records
@@ -97,22 +94,21 @@ class WalletCoinStore:
                 self.unspent_coin_wallet_cache[record.wallet_id] = {}
                 self.unspent_coin_wallet_cache[record.wallet_id][name] = record
 
-        cursor = await self.db_connection.execute(
-            "INSERT OR REPLACE INTO coin_record VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                name.hex(),
-                record.confirmed_block_height,
-                record.spent_block_height,
-                int(record.spent),
-                int(record.coinbase),
-                str(record.coin.puzzle_hash.hex()),
-                str(record.coin.parent_coin_info.hex()),
-                bytes(record.coin.amount),
-                record.wallet_type,
-                record.wallet_id,
-            ),
+        await self.db_connection.execute(
+            "INSERT OR REPLACE INTO coin_record VALUES(:coin_name, :confirmed_height, :spent_height, :spent, :coinbase, :puzzle_hash, :coin_parent, :amount, :wallet_type, :wallet_id)",
+            {
+                "coin_name": name.hex(),
+                "confirmed_height": record.confirmed_block_height,
+                "spent_height": record.spent_block_height,
+                "spent": int(record.spent),
+                "coinbase": int(record.coinbase),
+                "puzzle_hash": str(record.coin.puzzle_hash.hex()),
+                "coin_parent": str(record.coin.parent_coin_info.hex()),
+                "amount": bytes(record.coin.amount),
+                "wallet_type": record.wallet_type,
+                "wallet_id": record.wallet_id,
+            }
         )
-        await cursor.close()
 
     # Update coin_record to be spent in DB
     async def set_spent(self, coin_name: bytes32, height: uint32) -> WalletCoinRecord:
@@ -143,9 +139,7 @@ class WalletCoinStore:
         """Returns CoinRecord with specified coin id."""
         if coin_name in self.coin_record_cache:
             return self.coin_record_cache[coin_name]
-        cursor = await self.db_connection.execute("SELECT * from coin_record WHERE coin_name=?", (coin_name.hex(),))
-        row = await cursor.fetchone()
-        await cursor.close()
+        row = await self.db_connection.fetch_one("SELECT * from coin_record WHERE coin_name=:coin_name", {"coin_name": coin_name.hex()})
 
         if row is None:
             return None
@@ -153,9 +147,7 @@ class WalletCoinStore:
 
     async def get_first_coin_height(self) -> Optional[uint32]:
         """Returns height of first confirmed coin"""
-        cursor = await self.db_connection.execute("SELECT MIN(confirmed_height) FROM coin_record;")
-        row = await cursor.fetchone()
-        await cursor.close()
+        row = await self.db_connection.fetch_one("SELECT MIN(confirmed_height) FROM coin_record;")
 
         if row is not None and row[0] is not None:
             return uint32(row[0])
@@ -194,18 +186,14 @@ class WalletCoinStore:
 
     async def get_all_coins(self) -> Set[WalletCoinRecord]:
         """Returns set of all CoinRecords."""
-        cursor = await self.db_connection.execute("SELECT * from coin_record")
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db_connection.fetch_all("SELECT * from coin_record")
 
         return set(self.coin_record_from_row(row) for row in rows)
 
     # Checks DB and DiffStores for CoinRecords with puzzle_hash and returns them
     async def get_coin_records_by_puzzle_hash(self, puzzle_hash: bytes32) -> List[WalletCoinRecord]:
         """Returns a list of all coin records with the given puzzle hash"""
-        cursor = await self.db_connection.execute("SELECT * from coin_record WHERE puzzle_hash=?", (puzzle_hash.hex(),))
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db_connection.fetch_all("SELECT * from coin_record WHERE puzzle_hash=:puzzle_hash", {"puzzle_hash": puzzle_hash.hex()})
 
         return [self.coin_record_from_row(row) for row in rows]
 
@@ -240,10 +228,8 @@ class WalletCoinStore:
                 if coin_record.coin.name() in coin_cache:
                     coin_cache.pop(coin_record.coin.name())
 
-        c1 = await self.db_connection.execute("DELETE FROM coin_record WHERE confirmed_height>?", (height,))
-        await c1.close()
-        c2 = await self.db_connection.execute(
-            "UPDATE coin_record SET spent_height = 0, spent = 0 WHERE spent_height>?",
-            (height,),
+        await self.db_connection.execute("DELETE FROM coin_record WHERE confirmed_height>:min_confirmed_height", {"min_confirmed_height": height})
+        await self.db_connection.execute(
+            "UPDATE coin_record SET spent_height = 0, spent = 0 WHERE spent_height>:min_spent_height",
+            {"min_spent_height": height},
         )
-        await c2.close()

@@ -31,6 +31,6 @@ class HintStore:
 #START_HERE_FAM
     async def add_hints(self, coin_hint_list: List[Tuple[bytes32, bytes]]) -> None:
         await self.coin_record_db.execute_many(
-            "INSERT INTO hints VALUES(?, ?, ?)",
-            [(None,) + record for record in coin_hint_list],
+            "INSERT INTO hints VALUES(:id, :coin_id, :hint)",
+            map(lambda coin_hint: {"id": None, "coin_id": coin_hint[0], "hint": coin_hint[1]}, coin_hint_list),
         )
