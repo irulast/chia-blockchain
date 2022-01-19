@@ -23,17 +23,14 @@ class HintStore:
         return self
 
     async def get_coin_ids(self, hint: bytes) -> List[bytes32]:
-        cursor = await self.coin_record_db.execute("SELECT * from hints WHERE hint=?", (hint,))
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.coin_record_db.fetch_all("SELECT * from hints WHERE hint=:hint", {"hint": hint})
         coin_ids = []
         for row in rows:
             coin_ids.append(row[1])
         return coin_ids
-
+#START_HERE_FAM
     async def add_hints(self, coin_hint_list: List[Tuple[bytes32, bytes]]) -> None:
-        cursor = await self.coin_record_db.executemany(
+        await self.coin_record_db.execute_many(
             "INSERT INTO hints VALUES(?, ?, ?)",
             [(None,) + record for record in coin_hint_list],
         )
-        await cursor.close()

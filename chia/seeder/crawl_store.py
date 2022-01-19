@@ -100,51 +100,51 @@ class CrawlStore:
             return
 
         added_timestamp = int(time.time())
-        cursor = await self.crawl_db.execute(
-            "INSERT OR REPLACE INTO peer_records VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                peer_record.peer_id,
-                peer_record.ip_address,
-                peer_record.port,
-                int(peer_record.connected),
-                peer_record.last_try_timestamp,
-                peer_record.try_count,
-                peer_record.connected_timestamp,
-                added_timestamp,
-                peer_record.best_timestamp,
-                peer_record.version,
-                peer_record.handshake_time,
-                peer_record.tls_version,
-            ),
+        await self.crawl_db.execute(
+            "INSERT OR REPLACE INTO peer_records VALUES(:peer_id, :ip_address, :port, :connected, :last_try_timestamp, :try_count, :connected_timestamp, :added_timestamp, :best_timestamp, :version, :handshake_time, :tls_version)",
+            {
+                "peer_id": peer_record.peer_id,
+                "ip_address": peer_record.ip_address,
+                "port": peer_record.port,
+                "connected": int(peer_record.connected),
+                "last_try_timestamp": peer_record.last_try_timestamp,
+                "try_count": peer_record.try_count,
+                "connected_timestamp": peer_record.connected_timestamp,
+                "added_timestamp": added_timestamp,
+                "best_timestamp": peer_record.best_timestamp,
+                "version": peer_record.version,
+                "handshake_time": peer_record.handshake_time,
+                "tls_version": peer_record.tls_version,
+            }
         )
-        await cursor.close()
-        cursor = await self.crawl_db.execute(
+
+        await self.crawl_db.execute(
             "INSERT OR REPLACE INTO peer_reliability"
-            " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                peer_reliability.peer_id,
-                peer_reliability.ignore_till,
-                peer_reliability.ban_till,
-                peer_reliability.stat_2h.weight,
-                peer_reliability.stat_2h.count,
-                peer_reliability.stat_2h.reliability,
-                peer_reliability.stat_8h.weight,
-                peer_reliability.stat_8h.count,
-                peer_reliability.stat_8h.reliability,
-                peer_reliability.stat_1d.weight,
-                peer_reliability.stat_1d.count,
-                peer_reliability.stat_1d.reliability,
-                peer_reliability.stat_1w.weight,
-                peer_reliability.stat_1w.count,
-                peer_reliability.stat_1w.reliability,
-                peer_reliability.stat_1m.weight,
-                peer_reliability.stat_1m.count,
-                peer_reliability.stat_1m.reliability,
-                peer_reliability.tries,
-                peer_reliability.successes,
-            ),
+            " VALUES(:peer_id, :ignore_till, :ban_till, :stat_2h_weight, :stat_2h_count, :stat_2h_reliability, :stat_8h_weight, :stat_8h_count, :stat_8h_reliability, :stat_1d_weight, :stat_1d_count, :stat_1d_reliability, :stat_1w_weight, :stat_1w_count, :stat_1w_reliability, :stat_1m_weight, :stat_1m_count, :stat_1m_reliability, :tries, :successes)",
+            {
+                "peer_id": peer_reliability.peer_id,
+                "ignore_till": peer_reliability.ignore_till,
+                "ban_till": peer_reliability.ban_till,
+                "stat_2h_weight": peer_reliability.stat_2h.weight,
+                "stat_2h_count": peer_reliability.stat_2h.count,
+                "stat_2h_reliability": peer_reliability.stat_2h.reliability,
+                "stat_8h_weight": peer_reliability.stat_8h.weight,
+                "stat_8h_count": peer_reliability.stat_8h.count,
+                "stat_8h_reliability": peer_reliability.stat_8h.reliability,
+                "stat_1d_weight": peer_reliability.stat_1d.weight,
+                "stat_1d_count": peer_reliability.stat_1d.count,
+                "stat_1d_reliability": peer_reliability.stat_1d.reliability,
+                "stat_1w_weight": peer_reliability.stat_1w.weight,
+                "stat_1w_count": peer_reliability.stat_1w.count,
+                "stat_1w_reliability": peer_reliability.stat_1w.reliability,
+                "stat_1m_weight": peer_reliability.stat_1m.weight,
+                "stat_1m_count": peer_reliability.stat_1m.count,
+                "stat_1m_reliability": peer_reliability.stat_1m.reliability,
+                "tries": peer_reliability.tries,
+                "successes": peer_reliability.successes,
+            },
         )
-        await cursor.close()
+
 
     async def get_peer_reliability(self, peer_id: str) -> PeerReliability:
         return self.host_to_reliability[peer_id]
@@ -281,11 +281,10 @@ class CrawlStore:
         self.host_to_records = {}
         self.host_to_reliability = {}
         log.error("Loading peer reliability records...")
-        cursor = await self.crawl_db.execute(
+        rows = await self.crawl_db.fetch_all(
             "SELECT * from peer_reliability",
         )
-        rows = await cursor.fetchall()
-        await cursor.close()
+
         for row in rows:
             reliability = PeerReliability(
                 row[0],
@@ -312,11 +311,9 @@ class CrawlStore:
             self.host_to_reliability[row[0]] = reliability
         log.error("  - Done loading peer reliability records...")
         log.error("Loading peer records...")
-        cursor = await self.crawl_db.execute(
+        rows = await self.crawl_db.fetch_all(
             "SELECT * from peer_records",
         )
-        rows = await cursor.fetchall()
-        await cursor.close()
         for row in rows:
             peer = PeerRecord(
                 row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]
@@ -333,18 +330,17 @@ class CrawlStore:
                 peers.append(peer_id)
         self.reliable_peers = len(peers)
         log.error("Deleting old good_peers from DB...")
-        cursor = await self.crawl_db.execute(
+        await self.crawl_db.execute(
             "DELETE from good_peers",
         )
-        await cursor.close()
+
         log.error(" - Done deleting old good_peers...")
         log.error("Saving new good_peers to DB...")
         for peer in peers:
-            cursor = await self.crawl_db.execute(
-                "INSERT OR REPLACE INTO good_peers VALUES(?)",
-                (peer,),
+            await self.crawl_db.execute(
+                "INSERT OR REPLACE INTO good_peers VALUES(:peer)",
+                {"peer": peer},
             )
-            await cursor.close()
         await self.crawl_db.commit()
         log.error(" - Done saving new good_peers to DB...")
 
