@@ -33,33 +33,30 @@ async def new_block(
     ses: Optional[SubEpochSummary],
 ):
     if db.db_version == 2:
-        cursor = await db.db.execute(
-            "INSERT INTO full_blocks VALUES(?, ?, ?, ?)",
-            (
-                block_hash,
-                parent,
-                height,
+        await db.db.execute(
+            "INSERT INTO full_blocks VALUES(:block_hash, :parent, :height, :sub_epoch_summary)",
+            {
+                "block_hash": block_hash,
+                "parent": parent,
+                "height": height,
                 # sub epoch summary
-                None if ses is None else bytes(ses),
-            ),
+                "sub_epoch_summary": None if ses is None else bytes(ses),
+            }
         )
-        await cursor.close()
         if is_peak:
-            cursor = await db.db.execute("INSERT OR REPLACE INTO current_peak VALUES(?, ?)", (0, block_hash))
-            await cursor.close()
+            await db.db.execute("INSERT OR REPLACE INTO current_peak VALUES(:key, :hash)", {"key": 0, "hash":  block_hash})
     else:
-        cursor = await db.db.execute(
-            "INSERT INTO block_records VALUES(?, ?, ?, ?, ?)",
-            (
-                block_hash.hex(),
-                parent.hex(),
-                height,
+        await db.db.execute(
+            "INSERT INTO block_records VALUES(:header_hash, :prev_hash, :height, :sub_epoch_summary, :is_peak)",
+            {
+                "header_hash": block_hash.hex(),
+                "prev_hash": parent.hex(),
+                "height": height,
                 # sub epoch summary
-                None if ses is None else bytes(ses),
-                is_peak,
-            ),
+                "sub_epoch_summary": None if ses is None else bytes(ses),
+                "is_peak": is_peak,
+            }
         )
-        await cursor.close()
 
 
 async def setup_db(db: DBWrapper):
