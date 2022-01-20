@@ -16,7 +16,7 @@ async def create_address_manager_from_db(db_path: Path) -> Optional[AddressManag
     """
     Creates an AddressManager using data from the SQLite peer db
     """
-    async with create_database(str(db_path)).connect() as connection:
+    async with create_database(str(db_path)) as connection:
         await connection.execute("pragma journal_mode=wal")
         await connection.execute("pragma synchronous=OFF")
 
