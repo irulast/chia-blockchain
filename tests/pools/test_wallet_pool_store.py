@@ -54,8 +54,8 @@ class TestWalletPoolStore:
         await db_connection.connect()
         db_wrapper = DBWrapper(db_connection)
         store = await WalletPoolStore.create(db_wrapper)
+        transaction = db_connection.transaction()
         try:
-            await db_wrapper.begin_transaction()
             coin_0 = Coin(token_bytes(32), token_bytes(32), uint64(12312))
             coin_0_alt = Coin(token_bytes(32), token_bytes(32), uint64(12312))
             solution_0: CoinSpend = make_child_solution(None, coin_0)
@@ -76,7 +76,7 @@ class TestWalletPoolStore:
                 await store.add_spend(1, solution_1, 101)
 
             # Rebuild cache, no longer present
-            await db_wrapper.rollback_transaction()
+            await transaction.rollback()
             await store.rebuild_cache()
             assert store.get_spends_for_wallet(1) == []
 

@@ -39,7 +39,7 @@ class TestHintStore:
 
             hints = [(coin_id_0, hint_0), (coin_id_1, hint_0), (coin_id_2, hint_1)]
             await hint_store.add_hints(hints)
-            await db_wrapper.commit_transaction()
+            # await db_wrapper.commit_transaction()
             coins_for_hint_0 = await hint_store.get_coin_ids(hint_0)
 
             assert coin_id_0 in coins_for_hint_0

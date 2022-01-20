@@ -229,8 +229,8 @@ class WalletBlockchain(BlockchainInterface):
         # Always add the block to the database
         async with self.wallet_state_manager_lock:
             async with self.block_store.db_wrapper.lock:
+                transaction = await self.block_store.db.transaction()
                 try:
-                    await self.block_store.db_wrapper.begin_transaction()
                     await self.block_store.add_block_record(header_block_record, block_record, additional_coin_spends)
                     self.add_block_record(block_record)
                     self.clean_block_record(block_record.height - self.constants.BLOCKS_CACHE_SIZE)
@@ -240,11 +240,11 @@ class WalletBlockchain(BlockchainInterface):
                     for record in records_to_add:
                         if record.sub_epoch_summary_included is not None:
                             self.__sub_epoch_summaries[record.height] = record.sub_epoch_summary_included
-                    await self.block_store.db_wrapper.commit_transaction()
+                    await transaction.commit()
                 except BaseException as e:
                     self.log.error(f"Error during db transaction: {e}")
                     if self.block_store.db_wrapper.db._connection is not None:
-                        await self.block_store.db_wrapper.rollback_transaction()
+                        await transaction.rollback()
                         self.remove_block_record(block_record.header_hash)
                         self.block_store.rollback_cache_block(block_record.header_hash)
                         await self.coin_store.rebuild_wallet_cache()

@@ -182,7 +182,7 @@ class BlockStore:
 
         else:
             await self.db.execute(
-                "INSERT OR REPLACE INTO full_blocks VALUES(:header_hash, :block, :is_transaction_block, :is_fully_compactified, :block)",
+                "INSERT OR REPLACE INTO full_blocks VALUES(:header_hash, :height, :is_transaction_block, :is_fully_compactified, :block)",
                 {
                     "header_hash": header_hash.hex(),
                     "height": block.height,

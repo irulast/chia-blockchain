@@ -2139,7 +2139,7 @@ class FullNode:
                 continue
             async with self.db_wrapper.lock:
                 await self.block_store.add_full_block(new_block.header_hash, new_block, block_record)
-                await self.block_store.db_wrapper.commit_transaction()
+                # await self.block_store.db_wrapper.commit_transaction()
                 replaced = True
         return replaced
 
