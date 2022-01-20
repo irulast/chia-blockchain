@@ -416,7 +416,7 @@ class CoinStore:
             coin_changes[record.name] = record
 
         # Delete from storage
-        await self.coin_record_db.execute("DELETE FROM coin_record WHERE confirmed_index>:min_confirmed_index",  {"min_confirmed_index": block_index}
+        await self.coin_record_db.execute("DELETE FROM coin_record WHERE confirmed_index>:min_confirmed_index",  {"min_confirmed_index": block_index})
 
         rows = await self.coin_record_db.fetch_all(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
