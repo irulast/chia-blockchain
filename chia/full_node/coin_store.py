@@ -1,5 +1,7 @@
 from typing import List, Optional, Set, Dict, Any, Tuple
 from databases import Database
+from sqlalchemy import bindparam
+from sqlalchemy.sql import text
 from chia.protocols.wallet_protocol import CoinState
 from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.sized_bytes import bytes32
@@ -238,14 +240,20 @@ class CoinStore:
             puzzle_hashes_db = tuple(puzzle_hashes)
         else:
             puzzle_hashes_db = tuple([ph.hex() for ph in puzzle_hashes])
-        rows = await self.coin_record_db.fetch_all(
-            f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            f"coin_parent, amount, timestamp FROM coin_record INDEXED BY coin_puzzle_hash "
-            f'WHERE puzzle_hash in :puzzle_hashes_db '
-            f"AND confirmed_index>=:start_height AND confirmed_index<end_height "
-            f"{'' if include_spent_coins else 'AND spent_index=0'}",
-            {"puzzle_hashes_db": puzzle_hashes_db,  "start_height": start_height, "end_height": end_height},
-        ) 
+        
+        query = text(
+            "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
+            "coin_parent, amount, timestamp FROM coin_record INDEXED BY coin_puzzle_hash "
+            'WHERE puzzle_hash in :puzzle_hashes_db '
+            "AND confirmed_index>=:start_height AND confirmed_index<end_height "
+            f"{'' if include_spent_coins else 'AND spent_index=0'}"
+        )
+        query = query.bindparams(
+            bindparam("puzzle_hashes_db", puzzle_hashes_db, expanding=True),
+            bindparam("start_height", start_height),
+            bindparam("end_height", end_height)
+        )
+        rows = await self.coin_record_db.fetch_all(query) 
 
         for row in rows:
             coin = self.row_to_coin(row)
@@ -268,13 +276,19 @@ class CoinStore:
             names_db = tuple(names)
         else:
             names_db = tuple([name.hex() for name in names])
-        rows = await self.coin_record_db.fetch_all(
-            f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            f'coin_parent, amount, timestamp FROM coin_record WHERE coin_name in :coin_names '
-            f"AND confirmed_index>=:start_height AND confirmed_index<:end_height "
-            f"{'' if include_spent_coins else 'AND spent_index=0'}",
-            {"coin_names": names_db, "start_height": start_height, "end_height": end_height},
-        ) 
+        
+        query = text(
+            "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
+            'coin_parent, amount, timestamp FROM coin_record WHERE coin_name in :coin_names '
+            "AND confirmed_index>=:start_height AND confirmed_index<:end_height "
+            f"{'' if include_spent_coins else 'AND spent_index=0'}"
+        )
+        query = query.bindparams(
+            bindparam("coin_names", names_db, expanding=True),
+            bindparam("start_height", start_height),
+            bindparam("end_height", end_height)
+        )
+        rows = await self.coin_record_db.fetch_all(query) 
 
         for row in rows:
             coin = self.row_to_coin(row)
@@ -310,14 +324,20 @@ class CoinStore:
             puzzle_hashes_db = tuple(puzzle_hashes)
         else:
             puzzle_hashes_db = tuple([ph.hex() for ph in puzzle_hashes])
-        rows = await self.coin_record_db.fetch_all(
-            f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            f"coin_parent, amount, timestamp FROM coin_record INDEXED BY coin_puzzle_hash "
-            f'WHERE puzzle_hash in :puzzle_hashes '
-            f"AND confirmed_index>=:start_height AND confirmed_index<:end_height "
+
+        query = text(
+            "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
+            "coin_parent, amount, timestamp FROM coin_record INDEXED BY coin_puzzle_hash "
+            'WHERE puzzle_hash in :puzzle_hashes '
+            "AND confirmed_index>=:start_height AND confirmed_index<:end_height "
             f"{'' if include_spent_coins else 'AND spent_index=0'}",
-            {"puzzle_hashes": puzzle_hashes_db, "start_height": start_height, "end_height": end_height},
-        ) 
+        )
+        query = query.bindparams(
+            bindparam("puzzle_hashes", puzzle_hashes_db, expanding=True),
+            bindparam("start_height", start_height),
+            bindparam("end_height", end_height)
+        )
+        rows = await self.coin_record_db.fetch_all(query) 
 
         for row in rows:
             coins.add(self.row_to_coin_state(row))

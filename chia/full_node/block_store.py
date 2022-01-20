@@ -1,5 +1,7 @@
 import logging
 from databases import Database
+from sqlalchemy import bindparam
+from sqlalchemy.sql import text
 from typing import Dict, List, Optional, Tuple, Any
 
 import zstd
@@ -297,18 +299,17 @@ class BlockStore:
 
         all_blocks: Dict[bytes32, BlockRecord] = {}
         if self.db_wrapper.db_version == 2:
-            rows = await self.db.fetch_all(
-                "SELECT header_hash,block_record FROM full_blocks "
-                f'WHERE header_hash in (:header_hashes)',
-                {"header_hashes": tuple(header_hashes)},
-            ) 
+            query = text("SELECT header_hash, block_record FROM full_blocks WHERE header_hash in :header_hashes")
+            query = query.bindparams(bindparam("header_hashes", tuple(header_hashes), expanding=True))
+            rows = await self.db.fetch_all(query) 
             for row in rows:
                 header_hash = bytes32(row[0])
                 all_blocks[header_hash] = BlockRecord.from_bytes(row[1])
                 
         else:
-            formatted_str = f'SELECT block from block_records WHERE header_hash in :header_hashes'
-            rows = await self.db.fetch_all(formatted_str, {"header_hashes": tuple([hh.hex() for hh in header_hashes])})
+            query = text('SELECT block from block_records WHERE header_hash in :header_hashes')
+            query = query.bindparams(bindparam('header_hashes', tuple([hh.hex() for hh in header_hashes]), expanding = True))
+            rows = await self.db.fetch_all(query)
             for row in rows:
                 block_rec: BlockRecord = BlockRecord.from_bytes(row[0])
                 all_blocks[block_rec.header_hash] = block_rec
@@ -335,11 +336,10 @@ class BlockStore:
             header_hashes_db = tuple(header_hashes)
         else:
             header_hashes_db = tuple([hh.hex() for hh in header_hashes])
-        formatted_str = (
-            f'SELECT header_hash, block from full_blocks WHERE header_hash in :header_hashes_db'
-        )
+        query = text('SELECT header_hash, block from full_blocks WHERE header_hash in :header_hashes')
+        query = query.bindparams(bindparam('header_hashes', header_hashes_db, expanding = True))
         all_blocks: Dict[bytes32, FullBlock] = {}
-        rows = await self.db.fetch_all(formatted_str, {"header_hashes_db": header_hashes_db})
+        rows = await self.db.fetch_all(query)
         for row in rows:
             header_hash = self.maybe_from_hex(row[0])
             full_block: FullBlock = self.maybe_decompress(row[1])

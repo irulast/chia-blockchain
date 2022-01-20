@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from databases import Database
+from sqlalchemy import bindparam
+from sqlalchemy.sql import text
 
 from chia.consensus.block_record import BlockRecord
 from chia.types.blockchain_format.sized_bytes import bytes32
@@ -130,8 +132,9 @@ class WalletBlockStore:
             return []
 
         heights_db = tuple(heights)
-        formatted_str = f'SELECT block from header_blocks WHERE height in :heights'
-        rows = await self.db.fetch_all(formatted_str, {"heights": heights_db})
+        query = text('SELECT block from header_blocks WHERE height in :heights')
+        query = query.bindparams(bindparam("heights", heights_db, expanding=True))
+        rows = await self.db.fetch_all(query)
         return [HeaderBlock.from_bytes(row[0]) for row in rows]
 
     async def get_header_block_record(self, header_hash: bytes32) -> Optional[HeaderBlockRecord]:
