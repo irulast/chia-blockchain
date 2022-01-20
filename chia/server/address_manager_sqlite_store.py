@@ -1,6 +1,7 @@
 from databases import Database
 
 from chia.server.address_manager import AddressManager, ExtendedPeerInfo, NEW_BUCKETS_PER_ADDRESS
+from chia.util.db_factory import create_database
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -9,12 +10,13 @@ from chia.util.db_factory import create_database
 Node = Tuple[int, ExtendedPeerInfo]
 Table = Tuple[int, int]
 
-
+# Changed (Really not sure about this one)
 async def create_address_manager_from_db(db_path: Path) -> Optional[AddressManager]:
+
     """
     Creates an AddressManager using data from the SQLite peer db
     """
-    async with create_database(str(db_path)) as connection:
+    async with create_database(str(db_path)).connect() as connection:
         await connection.execute("pragma journal_mode=wal")
         await connection.execute("pragma synchronous=OFF")
 

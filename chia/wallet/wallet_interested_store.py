@@ -10,7 +10,7 @@ class WalletInterestedStore:
     """
     Stores coin ids that we are interested in receiving
     """
-
+    #Changed
     db_connection: Database
     db_wrapper: DBWrapper
 

@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 
 
 class WalletPoolStore:
+    # Changed
     db_connection: Database
     db_wrapper: DBWrapper
     _state_transitions_cache: Dict[int, List[Tuple[uint32, CoinSpend]]]

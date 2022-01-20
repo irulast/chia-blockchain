@@ -1,8 +1,9 @@
 from typing import Any
 
+from databases import Database
+
 from chia.util.byte_types import hexstr_to_bytes
 from chia.util.db_wrapper import DBWrapper
-from databases import Database
 from chia.util.streamable import Streamable
 
 
@@ -11,6 +12,7 @@ class KeyValStore:
     Multipurpose persistent key-value store
     """
 
+    #Changed
     db_connection: Database
     db_wrapper: DBWrapper
 
@@ -31,6 +33,7 @@ class KeyValStore:
     async def _clear_database(self):
         await self.db_connection.execute("DELETE FROM key_val_store")
 
+    # Would this get a @classmethod tag as well?
     async def get_object(self, key: str, type: Any) -> Any:
         """
         Return bytes representation of stored object

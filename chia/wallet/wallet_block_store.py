@@ -63,7 +63,7 @@ class WalletBlockStore:
 
         await self.db.execute("CREATE INDEX IF NOT EXISTS hh on block_records(header_hash)")
         await self.db.execute("CREATE INDEX IF NOT EXISTS peak on block_records(is_peak)")
-        await self.db.commit()
+        #await self.db.commit()
         self.block_cache = LRUCache(1000)
         return self
 

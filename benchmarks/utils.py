@@ -7,7 +7,8 @@ from chia.util.db_wrapper import DBWrapper
 from typing import Tuple
 from pathlib import Path
 from datetime import datetime
-import aiosqlite
+#from databases import Database
+from chia.util.db_factory import create_database
 import os
 import sys
 import random
@@ -52,7 +53,8 @@ async def setup_db(name: str, db_version: int) -> DBWrapper:
         os.unlink(db_filename)
     except FileNotFoundError:
         pass
-    connection = await aiosqlite.connect(db_filename)
+    connection = create_database(str(db_filename))
+    await connection.connect()
 
     def sql_trace_callback(req: str):
         sql_log_path = "sql.log"

@@ -14,6 +14,7 @@ class WalletUserStore:
     WalletUserStore keeps track of all user created wallets and necessary smart-contract data
     """
 
+    # Changed
     db_connection: Database
     cache_size: uint32
     db_wrapper: DBWrapper

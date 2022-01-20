@@ -21,6 +21,7 @@ class WalletPuzzleStore:
     WalletInterestedStore to keep track of puzzle hashes which we are interested in.
     """
 
+    # Changed
     db_connection: Database
     lock: asyncio.Lock
     cache_size: uint32

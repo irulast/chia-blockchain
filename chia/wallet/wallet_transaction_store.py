@@ -17,7 +17,7 @@ class WalletTransactionStore:
     """
     WalletTransactionStore stores transaction history for the wallet.
     """
-
+    # Changed
     db_connection: Database
     db_wrapper: DBWrapper
     tx_record_cache: Dict[bytes32, TransactionRecord]

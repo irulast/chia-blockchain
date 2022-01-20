@@ -5,6 +5,7 @@ from databases import Database
 from chia.util.ints import uint32
 from chia.wallet.util.wallet_types import WalletType
 from chia.wallet.wallet_action import WalletAction
+from databases import Database
 
 
 class WalletActionStore:
@@ -13,6 +14,7 @@ class WalletActionStore:
     Used by Colored coins, Atomic swaps, Rate Limited, and Authorized payee wallets
     """
 
+    # Changed
     db_connection: Database
     cache_size: uint32
     db_wrapper: DBWrapper
@@ -42,7 +44,7 @@ class WalletActionStore:
 
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS wallet_type on action_queue(wallet_type)")
 
-        await self.db_connection.commit()
+        # await self.db_connection.commit()
         return self
 
     async def _clear_database(self):
