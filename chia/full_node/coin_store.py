@@ -407,8 +407,8 @@ class CoinStore:
         coin_changes: Dict[bytes32, CoinRecord] = {}
         rows = await self.coin_record_db.fetch_all(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            "coin_parent, amount, timestamp FROM coin_record WHERE confirmed_index>:confirmed_index",
-            {"confirmed_index": block_index},
+            "coin_parent, amount, timestamp FROM coin_record WHERE confirmed_index>:min_confirmed_index",
+            {"min_confirmed_index": block_index},
         ) 
         for row in rows:
             coin = self.row_to_coin(row)
@@ -416,12 +416,12 @@ class CoinStore:
             coin_changes[record.name] = record
 
         # Delete from storage
-        await self.coin_record_db.execute("DELETE FROM coin_record WHERE confirmed_index>?", (block_index,))
+        await self.coin_record_db.execute("DELETE FROM coin_record WHERE confirmed_index>:min_confirmed_index",  {"min_confirmed_index": block_index}
 
         rows = await self.coin_record_db.fetch_all(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            "coin_parent, amount, timestamp FROM coin_record WHERE confirmed_index>:confirmed_index",
-            {"confirmed_index": block_index},
+            "coin_parent, amount, timestamp FROM coin_record WHERE confirmed_index>:min_confirmed_index",
+            {"min_confirmed_index": block_index},
         ) 
         for row in rows:
             coin = self.row_to_coin(row)
@@ -431,11 +431,11 @@ class CoinStore:
 
         if self.db_wrapper.db_version == 2:
             await self.coin_record_db.execute(
-                "UPDATE coin_record SET spent_index=0 WHERE spent_index>?", (block_index,)
+                "UPDATE coin_record SET spent_index=0 WHERE spent_index>:min_spent_index", {"min_spent_index": block_index}
             )
         else:
             await self.coin_record_db.execute(
-                "UPDATE coin_record SET spent_index = 0, spent = 0 WHERE spent_index>?", (block_index,)
+                "UPDATE coin_record SET spent_index = 0, spent = 0 WHERE spent_index>:min_spent_index", {"min_spent_index": block_index}
             )
         return list(coin_changes.values())
 
@@ -448,7 +448,7 @@ class CoinStore:
                 self.coin_record_cache.put(record.coin.name(), record)
                 values2.append(
                     {
-                        "name": record.coin.name(),
+                        "coin_name": record.coin.name(),
                         "confirmed_block_index": record.confirmed_block_index,
                         "spent_block_index": record.spent_block_index,
                         "coinbase": int(record.coinbase),
@@ -459,7 +459,7 @@ class CoinStore:
                     }
                 )
             await self.coin_record_db.execute_many(
-                "INSERT INTO coin_record VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO coin_record VALUES(:coin_name, :confirmed_block_index, :spent_block_index, :coinbase, :puzzle_hash, :parent_coin_info, :amount, :timestamp)",
                 values2,
             )
         else:
@@ -467,20 +467,20 @@ class CoinStore:
             for record in records:
                 self.coin_record_cache.put(record.coin.name(), record)
                 values.append(
-                    (
-                        record.coin.name().hex(),
-                        record.confirmed_block_index,
-                        record.spent_block_index,
-                        int(record.spent),
-                        int(record.coinbase),
-                        record.coin.puzzle_hash.hex(),
-                        record.coin.parent_coin_info.hex(),
-                        bytes(record.coin.amount),
-                        record.timestamp,
-                    )
+                    {
+                        "coin_name": record.coin.name().hex(),
+                        "confirmed_block_index": record.confirmed_block_index,
+                        "spent_block_index": record.spent_block_index,
+                        "spent": int(record.spent),
+                        "coinbase": int(record.coinbase),
+                        "puzzle_hash": record.coin.puzzle_hash.hex(),
+                        "parent_coin_info": record.coin.parent_coin_info.hex(),
+                        "amount": bytes(record.coin.amount),
+                        "timestamp": record.timestamp,
+                    }
                 )
-            await self.coin_record_db.executemany(
-                "INSERT INTO coin_record VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            await self.coin_record_db.execute_many(
+                "INSERT INTO coin_record VALUES(:coin_name, :confirmed_block_index, :spent_block_index, :spent, :coinbase, :puzzle_hash, :parent_coin_info, :amount, :timestamp)",
                 values,
             )
 
@@ -496,13 +496,13 @@ class CoinStore:
                 self.coin_record_cache.put(
                     r.name, CoinRecord(r.coin, r.confirmed_block_index, index, r.coinbase, r.timestamp)
                 )
-            updates.append((index, self.maybe_to_hex(coin_name)))
+            updates.append({"spent_index": index, "coin_name": self.maybe_to_hex(coin_name)})
 
         if self.db_wrapper.db_version == 2:
-            await self.coin_record_db.executemany(
-                "UPDATE OR FAIL coin_record SET spent_index=? WHERE coin_name=?", updates
+            await self.coin_record_db.execute_many(
+                "UPDATE OR FAIL coin_record SET spent_index=:spent_index WHERE coin_name=:coin_name", updates
             )
         else:
-            await self.coin_record_db.executemany(
-                "UPDATE OR FAIL coin_record SET spent=1,spent_index=? WHERE coin_name=?", updates
+            await self.coin_record_db.execute_many(
+                "UPDATE OR FAIL coin_record SET spent=1,spent_index=:spent_index WHERE coin_name=:coin_name", updates
             )

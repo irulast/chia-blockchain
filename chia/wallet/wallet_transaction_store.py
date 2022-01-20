@@ -426,7 +426,7 @@ class WalletTransactionStore:
         for tx in to_delete:
             self.tx_record_cache.pop(tx.name)
 
-        await self.db_connection.execute("DELETE FROM transaction_record WHERE confirmed_at_height>:", {"min_confirmed_at_height": height})
+        await self.db_connection.execute("DELETE FROM transaction_record WHERE confirmed_at_height>:min_confirmed_at_height", {"min_confirmed_at_height": height})
 
     async def delete_unconfirmed_transactions(self, wallet_id: int):
         await self.db_connection.execute(
