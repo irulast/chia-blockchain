@@ -232,10 +232,9 @@ async def run_add_block_benchmark(version: int):
                 full_block,
                 record,
             )
-            await block_store.set_in_chain([(header_hash,)])
+            await block_store.set_in_chain([header_hash])
             header_hashes.append(header_hash)
             await block_store.set_peak(header_hash)
-            await db_wrapper.db.commit()
 
             stop = time()
             total_time += stop - start
@@ -428,7 +427,7 @@ async def run_add_block_benchmark(version: int):
         print(f"database size: {db_size/1000000:.3f} MB")
 
     finally:
-        await db_wrapper.db.close()
+        await db_wrapper.db.disconnect()
 
 
 if __name__ == "__main__":

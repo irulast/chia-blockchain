@@ -130,5 +130,5 @@ class TestWalletPoolStore:
             assert store.get_spends_for_wallet(1) == []
 
         finally:
-            await db_connection.close()
+            await db_connection.disconnect()
             db_filename.unlink()

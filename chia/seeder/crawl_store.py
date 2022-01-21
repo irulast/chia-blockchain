@@ -78,7 +78,6 @@ class CrawlStore:
         await self.crawl_db.execute("CREATE INDEX IF NOT EXISTS peer_id on peer_reliability(peer_id)")
         await self.crawl_db.execute("CREATE INDEX IF NOT EXISTS ignore_till on peer_reliability(ignore_till)")
 
-        await self.crawl_db.commit()
         self.last_timestamp = 0
         self.ignored_peers = 0
         self.banned_peers = 0
@@ -274,7 +273,6 @@ class CrawlStore:
                 reliability = self.host_to_reliability[peer_id]
                 record = self.host_to_records[peer_id]
                 await self.add_peer(record, reliability, True)
-        await self.crawl_db.commit()
         log.error(" - Done saving peers to DB")
 
     async def unload_from_db(self):
@@ -341,7 +339,6 @@ class CrawlStore:
                 "INSERT OR REPLACE INTO good_peers VALUES(:peer)",
                 {"peer": peer},
             )
-        await self.crawl_db.commit()
         log.error(" - Done saving new good_peers to DB...")
 
     def load_host_to_version(self):

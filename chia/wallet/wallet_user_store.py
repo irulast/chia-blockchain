@@ -41,7 +41,6 @@ class WalletUserStore:
 
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS data on users_wallets(data)")
 
-        await self.db_connection.commit()
         await self.init_wallet()
         return self
 
@@ -66,7 +65,6 @@ class WalletUserStore:
             )
         finally:
             if not in_transaction:
-                await self.db_connection.commit()
                 self.db_wrapper.lock.release()
 
         return await self.get_last_wallet()
@@ -78,7 +76,6 @@ class WalletUserStore:
             await self.db_connection.execute(f"DELETE FROM users_wallets where id={id}")
         finally:
             if not in_transaction:
-                await self.db_connection.commit()
                 self.db_wrapper.lock.release()
 
     async def update_wallet(self, wallet_info: WalletInfo, in_transaction):
@@ -96,7 +93,6 @@ class WalletUserStore:
             )
         finally:
             if not in_transaction:
-                await self.db_connection.commit()
                 self.db_wrapper.lock.release()
 
     async def get_last_wallet(self) -> Optional[WalletInfo]:

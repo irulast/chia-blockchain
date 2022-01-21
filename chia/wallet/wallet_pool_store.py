@@ -27,7 +27,6 @@ class WalletPoolStore:
             "CREATE TABLE IF NOT EXISTS pool_state_transitions(transition_index integer, wallet_id integer, "
             "height bigint, coin_spend blob, PRIMARY KEY(transition_index, wallet_id))"
         )
-        await self.db_connection.commit()
         await self.rebuild_cache()
         return self
 

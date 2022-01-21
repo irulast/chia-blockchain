@@ -27,7 +27,6 @@ class KeyValStore:
 
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS name on key_val_store(key)")
 
-        await self.db_connection.commit()
         return self
 
     async def _clear_database(self):

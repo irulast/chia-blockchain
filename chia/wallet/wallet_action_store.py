@@ -78,7 +78,6 @@ class WalletActionStore:
             )
         finally:
             if not in_transaction:
-                await self.db_connection.commit()
                 self.db_wrapper.lock.release()
 
     async def action_done(self, action_id: int):

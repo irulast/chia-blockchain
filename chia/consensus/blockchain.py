@@ -363,7 +363,7 @@ class Blockchain(BlockchainInterface):
                     )
                 else:
                     added, _ = [], []
-                await self.block_store.set_in_chain([(block_record.header_hash,)])
+                await self.block_store.set_in_chain([block_record.header_hash])
                 await self.block_store.set_peak(block_record.header_hash)
                 return uint32(0), uint32(0), [block_record], (added, {})
             return None, None, [], ([], {})
@@ -448,7 +448,7 @@ class Blockchain(BlockchainInterface):
                                 hint_coin_state[key] = {}
                             hint_coin_state[key][coin_id] = lastest_coin_state[coin_id]
 
-            await self.block_store.set_in_chain([(br.header_hash,) for br in records_to_add])
+            await self.block_store.set_in_chain([br.header_hash for br in records_to_add])
 
             # Changes the peak to be the new peak
             await self.block_store.set_peak(block_record.header_hash)

@@ -109,7 +109,7 @@ async def check_spend_bundle_validity(
 
     finally:
         # if we don't close the connection, the test process doesn't exit cleanly
-        await connection.close()
+        await connection.disconnect()
 
         # we must call `shut_down` or the executor in `Blockchain` doesn't stop
         blockchain.shut_down()

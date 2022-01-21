@@ -45,7 +45,6 @@ class TradeStore:
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS trade_status on trade_records(status)")
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS trade_id on trade_records(trade_id)")
 
-        await self.db_connection.commit()
         return self
 
     async def _clear_database(self):
@@ -71,7 +70,6 @@ class TradeStore:
             )
         finally:
             if not in_transaction:
-                await self.db_connection.commit()
                 self.db_wrapper.lock.release()
 
     async def set_status(self, trade_id: bytes32, status: TradeStatus, in_transaction: bool, index: uint32 = uint32(0)):

@@ -149,7 +149,7 @@ class BlockStore:
                 "UPDATE OR FAIL full_blocks SET in_main_chain=0 WHERE height>:height AND in_main_chain=1", {"height": height}
             )
 
-    async def set_in_chain(self, header_hashes: List[Tuple[bytes32]]) -> None:
+    async def set_in_chain(self, header_hashes: List[bytes32]) -> None:
         if self.db_wrapper.db_version == 2:
             await self.db.execute_many(
                 "UPDATE OR FAIL full_blocks SET in_main_chain=1 WHERE header_hash=:header_hash", map(lambda header_hash: {"header_hash": header_hash}, header_hashes)

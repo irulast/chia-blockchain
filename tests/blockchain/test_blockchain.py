@@ -561,7 +561,7 @@ class TestBlockHeaderValidation:
             assert err is None
             assert result == ReceiveBlockResult.NEW_PEAK
 
-        await connection.close()
+        await connection.disconnect()
         bc1.shut_down()
         db_path.unlink()
 
@@ -2243,7 +2243,7 @@ class TestBodyValidation:
         #         assert False
         #     except Exception as e:
         #         pass
-        #     await connection.close()
+        #     await connection.disconnect()
         #     b.shut_down()
         #     db_path.unlink()
 

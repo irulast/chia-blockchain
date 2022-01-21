@@ -61,7 +61,6 @@ class WalletPuzzleStore:
 
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS used on derivation_paths(wallet_type)")
 
-        await self.db_connection.commit()
         # Lock
         self.lock = asyncio.Lock()  # external
         await self._init_cache()
@@ -105,7 +104,6 @@ class WalletPuzzleStore:
 
         finally:
             if not in_transaction:
-                await self.db_connection.commit()
                 self.db_wrapper.lock.release()
 
     async def get_derivation_record(self, index: uint32, wallet_id: uint32) -> Optional[DerivationRecord]:
@@ -165,7 +163,6 @@ class WalletPuzzleStore:
             )
         finally:
             if not in_transaction:
-                await self.db_connection.commit()
                 self.db_wrapper.lock.release()
 
     async def puzzle_hash_exists(self, puzzle_hash: bytes32) -> bool:

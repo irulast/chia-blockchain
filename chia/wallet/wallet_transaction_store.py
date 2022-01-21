@@ -73,7 +73,6 @@ class WalletTransactionStore:
 
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS wallet_id on transaction_record(wallet_id)")
 
-        await self.db_connection.commit()
         self.tx_record_cache = {}
         self.tx_submitted = {}
         self.unconfirmed_for_wallet = {}
@@ -129,8 +128,6 @@ class WalletTransactionStore:
                     "type": record.type,
                 }
             )
-            if not in_transaction:
-                await self.db_connection.commit()
         except BaseException:
             if not in_transaction:
                 await self.rebuild_tx_cache()

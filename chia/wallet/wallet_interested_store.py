@@ -26,7 +26,6 @@ class WalletInterestedStore:
         await self.db_connection.execute(
             "CREATE TABLE IF NOT EXISTS interested_puzzle_hashes(puzzle_hash text PRIMARY KEY, wallet_id integer)"
         )
-        await self.db_connection.commit()
         return self
 
     async def _clear_database(self):
@@ -47,7 +46,6 @@ class WalletInterestedStore:
             )
         finally:
             if not in_transaction:
-                await self.db_connection.commit()
                 self.db_wrapper.lock.release()
 
     async def get_interested_puzzle_hashes(self) -> List[Tuple[bytes32, int]]:
@@ -74,7 +72,6 @@ class WalletInterestedStore:
             )
         finally:
             if not in_transaction:
-                await self.db_connection.commit()
                 self.db_wrapper.lock.release()
 
     async def remove_interested_puzzle_hash(self, puzzle_hash: bytes32, in_transaction: bool = False) -> None:
@@ -86,5 +83,4 @@ class WalletInterestedStore:
             )
         finally:
             if not in_transaction:
-                await self.db_connection.commit()
                 self.db_wrapper.lock.release()
