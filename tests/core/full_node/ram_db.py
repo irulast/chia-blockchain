@@ -10,7 +10,7 @@ from chia.full_node.hint_store import HintStore
 from chia.util.db_wrapper import DBWrapper
 
 
-async def create_ram_blockchain(consensus_constants: ConsensusConstants) -> Tuple[aiosqlite.Connection, Blockchain]:
+async def create_ram_blockchain(consensus_constants: ConsensusConstants) -> Tuple[Database, Blockchain]:
     connection = Database("sqlite:///:memory:")
     await connection.connect()
     db_wrapper = DBWrapper(connection)
