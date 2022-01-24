@@ -24,6 +24,7 @@ from chia.types.coin_spend import CoinSpend
 from chia.types.condition_opcodes import ConditionOpcode
 from chia.types.full_block import FullBlock
 from chia.types.spend_bundle import SpendBundle
+from chia.util import temp_file_db
 from chia.util.errors import Err
 from chia.util.ints import uint32
 from tests.block_tools import create_block_tools, test_constants
@@ -73,7 +74,7 @@ async def check_spend_bundle_validity(
     `SpendBundle`, and then invokes `receive_block` to ensure that it's accepted (if `expected_err=None`)
     or fails with the correct error code.
     """
-    connection, blockchain = await create_ram_blockchain(constants)
+    temp_db, blockchain  = await create_ram_blockchain(constants)
     try:
         for block in blocks:
             received_block_result, err, fork_height, coin_changes = await blockchain.receive_block(block)
@@ -109,7 +110,7 @@ async def check_spend_bundle_validity(
 
     finally:
         # if we don't close the connection, the test process doesn't exit cleanly
-        await connection.disconnect()
+        await temp_db.disconnect()
 
         # we must call `shut_down` or the executor in `Blockchain` doesn't stop
         blockchain.shut_down()

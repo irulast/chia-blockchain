@@ -23,6 +23,7 @@ from chia.consensus.coinbase import create_pool_coin, create_farmer_coin
 from chia.consensus.block_rewards import calculate_pool_reward, calculate_base_farmer_reward
 from chia.consensus.cost_calculator import NPCResult
 from chia.util.db_factory import create_database
+from chia.util.temp_file_db import TempFileDatabase
 
 """
 The purpose of this file is to provide a lightweight simulator for the testing of Chialisp smart contracts.
@@ -54,6 +55,7 @@ class SimBlockRecord:
 
 class SpendSim:
 
+    temp_file_db: TempFileDatabase
     connection: Database
     mempool_manager: MempoolManager
     block_records: List[SimBlockRecord]
@@ -65,7 +67,8 @@ class SpendSim:
     @classmethod
     async def create(cls, defaults=DEFAULT_CONSTANTS):
         self = cls()
-        self.connection = create_database(":memory:")
+        self.temp_file_db = TempFileDatabase()
+        self.connection = self.temp_file_db.connection
         await self.connection.connect()
         coin_store = await CoinStore.create(DBWrapper(self.connection))
         self.mempool_manager = MempoolManager(coin_store, defaults)
@@ -77,7 +80,7 @@ class SpendSim:
         return self
 
     async def close(self):
-        await self.connection.disconnect()
+        await self.temp_file_db.disconnect()
 
     async def new_peak(self):
         await self.mempool_manager.new_peak(self.block_records[-1], [])

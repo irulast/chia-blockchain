@@ -281,8 +281,9 @@ class BlockStore:
             return []
 
         heights_db = tuple(heights)
-        formatted_str = f'SELECT block from full_blocks WHERE height in :heights'
-        rows = await self.db.fetch_all(formatted_str, {"heights": heights_db})
+        query = text('SELECT block from full_blocks WHERE height in :heights')
+        query.bindparams(bindparam("heights", heights_db, expanding=True))
+        rows = await self.db.fetch_all(query)
 
         ret: List[FullBlock] = []
         for row in rows:

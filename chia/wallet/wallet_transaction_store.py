@@ -370,7 +370,7 @@ class WalletTransactionStore:
             )
         else:
             rows = await self.db_connection.fetch_all(
-                "SELECT * from transaction_record where wallet_id=: and type=:type",
+                "SELECT * from transaction_record where wallet_id=:wallet_id and type=:type",
                 {
                     "wallet_id": wallet_id,
                     "type": type,

@@ -229,34 +229,38 @@ class WalletBlockchain(BlockchainInterface):
         # Always add the block to the database
         async with self.wallet_state_manager_lock:
             async with self.block_store.db_wrapper.lock:
-                transaction = await self.block_store.db.transaction()
-                try:
-                    await self.block_store.add_block_record(header_block_record, block_record, additional_coin_spends)
-                    self.add_block_record(block_record)
-                    self.clean_block_record(block_record.height - self.constants.BLOCKS_CACHE_SIZE)
-                    fork_height, records_to_add = await self._reconsider_peak(
-                        block_record, genesis, fork_point_with_peak, additional_coin_spends, heights_changed
-                    )
-                    for record in records_to_add:
-                        if record.sub_epoch_summary_included is not None:
-                            self.__sub_epoch_summaries[record.height] = record.sub_epoch_summary_included
-                    await transaction.commit()
-                except BaseException as e:
-                    self.log.error(f"Error during db transaction: {e}")
-                    if self.block_store.db_wrapper.db._connection is not None:
+                async with self.block_store.db.connection() as connection:
+                    transaction = await connection.transaction()
+                    try:
+                        await self.block_store.add_block_record(header_block_record, block_record, additional_coin_spends)
+                        self.add_block_record(block_record)
+                        self.clean_block_record(block_record.height - self.constants.BLOCKS_CACHE_SIZE)
+                        fork_height, records_to_add = await self._reconsider_peak(
+                            block_record, genesis, fork_point_with_peak, additional_coin_spends, heights_changed
+                        )
+                        for record in records_to_add:
+                            if record.sub_epoch_summary_included is not None:
+                                self.__sub_epoch_summaries[record.height] = record.sub_epoch_summary_included
+                    except BaseException as e:
+                        self.log.error(f"Error during db transaction: {e}")
+                        if self.block_store.db_wrapper.db._global_connection is not None:
+                            await transaction.rollback()
+                            self.remove_block_record(block_record.header_hash)
+                            self.block_store.rollback_cache_block(block_record.header_hash)
+                            await self.coin_store.rebuild_wallet_cache()
+                            await self.tx_store.rebuild_tx_cache()
+                            await self.pool_store.rebuild_cache()
+                            for height, replaced in heights_changed:
+                                # If it was replaced change back to the previous value otherwise pop the change
+                                if replaced is not None:
+                                    self.__height_to_hash[height] = replaced
+                                else:
+                                    self.__height_to_hash.pop(height)
+                        raise
+                    except:
                         await transaction.rollback()
-                        self.remove_block_record(block_record.header_hash)
-                        self.block_store.rollback_cache_block(block_record.header_hash)
-                        await self.coin_store.rebuild_wallet_cache()
-                        await self.tx_store.rebuild_tx_cache()
-                        await self.pool_store.rebuild_cache()
-                        for height, replaced in heights_changed:
-                            # If it was replaced change back to the previous value otherwise pop the change
-                            if replaced is not None:
-                                self.__height_to_hash[height] = replaced
-                            else:
-                                self.__height_to_hash.pop(height)
-                    raise
+                    else:
+                        await transaction.commit()
             if fork_height is not None:
                 self.log.info(f"💰 Updated wallet peak to height {block_record.height}, weight {block_record.weight}, ")
                 return ReceiveBlockResult.NEW_PEAK, None, fork_height
