@@ -7,11 +7,12 @@ from chia.consensus.constants import ConsensusConstants
 from chia.full_node.block_store import BlockStore
 from chia.full_node.coin_store import CoinStore
 from chia.full_node.hint_store import HintStore
+from chia.util.db_factory import create_database
 from chia.util.db_wrapper import DBWrapper
 
 
 async def create_ram_blockchain(consensus_constants: ConsensusConstants) -> Tuple[Database, Blockchain]:
-    connection = Database("sqlite:///:memory:")
+    connection = create_database(":memory:")
     await connection.connect()
     db_wrapper = DBWrapper(connection)
     block_store = await BlockStore.create(db_wrapper)

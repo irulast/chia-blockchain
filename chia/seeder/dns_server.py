@@ -102,7 +102,7 @@ class DNSServer:
             await asyncio.sleep(sleep_interval * 60)
             try:
                 # TODO: double check this. It shouldn't take this long to connect.
-                crawl_db = Database(str(self.db_path))
+                crawl_db = create_database(str(self.db_path))
                 await crawl_db.connect()
                 # TODO: ajw ADD TIMEOUT crawl_db = await aiosqlite.connect(self.db_path, timeout=600)
                 rows = await crawl_db.fetch_all(
