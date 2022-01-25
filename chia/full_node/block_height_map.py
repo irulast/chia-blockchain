@@ -64,8 +64,8 @@ class BlockHeightMap:
                 return self
 
             row = await db.db.fetch_one(
-                "SELECT header_hash,prev_hash,height,sub_epoch_summary FROM full_blocks WHERE header_hash=?",
-                {"peak_row": peak_row[0]},
+                "SELECT header_hash,prev_hash,height,sub_epoch_summary FROM full_blocks WHERE header_hash=:header_hash",
+                {"header_hash": peak_row[0]},
             )
             if row is None:
                 return self

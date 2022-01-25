@@ -282,7 +282,7 @@ class BlockStore:
 
         heights_db = tuple(heights)
         query = text('SELECT block from full_blocks WHERE height in :heights')
-        query.bindparams(bindparam("heights", heights_db, expanding=True))
+        query = query.bindparams(bindparam("heights", heights_db, expanding=True))
         rows = await self.db.fetch_all(query)
 
         ret: List[FullBlock] = []
