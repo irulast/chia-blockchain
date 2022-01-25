@@ -2,6 +2,7 @@ import os
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from async_timeout import asyncio
 
 import yaml
 
@@ -22,6 +23,7 @@ from chia.util.config import (
     save_config,
     unflatten_properties,
 )
+from chia.util.db_factory import create_database
 from chia.util.ints import uint32
 from chia.util.keychain import Keychain
 from chia.util.path import mkdir, path_from_root
@@ -255,7 +257,7 @@ def copy_cert_files(cert_path: Path, new_path: Path):
         check_and_fix_permissions_for_ssl_file(new_path_child, RESTRICT_MASK_KEY_FILE, DEFAULT_PERMISSIONS_KEY_FILE)
 
 
-def init(
+async def init(
     create_certs: Optional[Path],
     root_path: Path,
     fix_ssl_permissions: bool = False,
@@ -278,7 +280,7 @@ def init(
             print(f"** {root_path} does not exist. Executing core init **")
             # sanity check here to prevent infinite recursion
             if (
-                chia_init(
+                await chia_init(
                     root_path,
                     fix_ssl_permissions=fix_ssl_permissions,
                     testnet=testnet,
@@ -287,12 +289,12 @@ def init(
                 == 0
                 and root_path.exists()
             ):
-                return init(create_certs, root_path, fix_ssl_permissions)
+                return await init(create_certs, root_path, fix_ssl_permissions)
 
             print(f"** {root_path} was not created. Exiting **")
             return -1
     else:
-        return chia_init(
+        return await chia_init(
             root_path, fix_ssl_permissions=fix_ssl_permissions, testnet=testnet, experimental_v2_db=experimental_v2_db
         )
 
@@ -356,7 +358,7 @@ def chia_full_version_str() -> str:
     return f"{major}.{minor}.{patch}{dev}"
 
 
-def chia_init(
+async def chia_init(
     root_path: Path,
     *,
     should_check_keys: bool = True,
@@ -405,12 +407,10 @@ def chia_init(
         db_path_replaced: str = config["database_path"].replace("CHALLENGE", config["selected_network"])
         db_path = path_from_root(root_path, db_path_replaced)
         mkdir(db_path.parent)
-        import sqlite3
-
-        with sqlite3.connect(db_path) as connection:
+        
+        async with create_database(str(db_path)) as connection:
             connection.execute("CREATE TABLE database_version(version int)")
             connection.execute("INSERT INTO database_version VALUES (2)")
-            connection.commit()
 
     print("")
     print("To see your keys, run 'chia keys show --show-mnemonic-seed'")
