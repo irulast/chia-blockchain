@@ -44,7 +44,7 @@ def version_cmd() -> None:
 @click.pass_context
 def init_cmd(ctx: click.Context, **kwargs):
     print("Calling Chia Seeder Init...")
-    asyncio.run(init(None, ctx.obj["root_path"], True))
+    init(None, ctx.obj["root_path"], True)
     if os.environ.get("CHIA_ROOT", None) is not None:
         print(f"warning, your CHIA_ROOT is set to {os.environ['CHIA_ROOT']}.")
     root_path = ctx.obj["root_path"]

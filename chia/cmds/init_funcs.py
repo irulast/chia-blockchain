@@ -257,7 +257,7 @@ def copy_cert_files(cert_path: Path, new_path: Path):
         check_and_fix_permissions_for_ssl_file(new_path_child, RESTRICT_MASK_KEY_FILE, DEFAULT_PERMISSIONS_KEY_FILE)
 
 
-async def init(
+def init(
     create_certs: Optional[Path],
     root_path: Path,
     fix_ssl_permissions: bool = False,
@@ -280,7 +280,7 @@ async def init(
             print(f"** {root_path} does not exist. Executing core init **")
             # sanity check here to prevent infinite recursion
             if (
-                await chia_init(
+                chia_init(
                     root_path,
                     fix_ssl_permissions=fix_ssl_permissions,
                     testnet=testnet,
@@ -289,12 +289,12 @@ async def init(
                 == 0
                 and root_path.exists()
             ):
-                return await init(create_certs, root_path, fix_ssl_permissions)
+                return init(create_certs, root_path, fix_ssl_permissions)
 
             print(f"** {root_path} was not created. Exiting **")
             return -1
     else:
-        return await chia_init(
+        return chia_init(
             root_path, fix_ssl_permissions=fix_ssl_permissions, testnet=testnet, experimental_v2_db=experimental_v2_db
         )
 
@@ -358,7 +358,7 @@ def chia_full_version_str() -> str:
     return f"{major}.{minor}.{patch}{dev}"
 
 
-async def chia_init(
+def chia_init(
     root_path: Path,
     *,
     should_check_keys: bool = True,
@@ -407,10 +407,12 @@ async def chia_init(
         db_path_replaced: str = config["database_path"].replace("CHALLENGE", config["selected_network"])
         db_path = path_from_root(root_path, db_path_replaced)
         mkdir(db_path.parent)
-        
-        async with create_database(str(db_path)) as connection:
+        import sqlite3
+
+        with sqlite3.connect(db_path) as connection:
             connection.execute("CREATE TABLE database_version(version int)")
             connection.execute("INSERT INTO database_version VALUES (2)")
+            connection.commit()
 
     print("")
     print("To see your keys, run 'chia keys show --show-mnemonic-seed'")

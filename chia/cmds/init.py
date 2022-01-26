@@ -43,13 +43,13 @@ def init_cmd(
     if set_passphrase:
         initialize_passphrase()
 
-    asyncio.run(init(
+    init(
         Path(create_certs) if create_certs is not None else None,
         ctx.obj["root_path"],
         fix_ssl_permissions,
         testnet,
         experimental_v2_db,
-    ))
+    )
 
 
 if not supports_keyring_passphrase():
@@ -63,4 +63,4 @@ if __name__ == "__main__":
     from .init_funcs import chia_init
     from chia.util.default_root import DEFAULT_ROOT_PATH
 
-    asyncio.run(chia_init(DEFAULT_ROOT_PATH))
+    chia_init(DEFAULT_ROOT_PATH)
