@@ -1,4 +1,3 @@
-import asyncio
 import click
 from chia.util.keychain import supports_keyring_passphrase
 
