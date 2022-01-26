@@ -2,7 +2,7 @@ import os
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from async_timeout import asyncio
+import asyncio
 
 import yaml
 

@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import random
-import sqlite3
 
 import pytest
 
@@ -25,7 +24,6 @@ class TestBlockStore:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("db_version", [1, 2])
     async def test_block_store(self, tmp_dir, db_version):
-        assert sqlite3.threadsafety == 1
         blocks = bt.get_consecutive_blocks(10)
 
         async with DBConnection(db_version) as db_wrapper, DBConnection(db_version) as db_wrapper_2:

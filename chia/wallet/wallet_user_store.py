@@ -1,4 +1,3 @@
-from sqlite3 import Row
 from typing import List, Optional
 
 from databases import Database

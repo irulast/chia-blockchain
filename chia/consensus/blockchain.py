@@ -281,7 +281,7 @@ class Blockchain(BlockchainInterface):
                     fork_height, peak_height, records, (coin_record_change, hint_changes) = await self._reconsider_peak(
                         block_record, genesis, fork_point_with_peak, npc_result
                     )
-                    await transaction.commit()
+                    
 
                     # Then update the memory cache. It is important that this task is not cancelled and does not throw
                     self.add_block_record(block_record)
@@ -300,6 +300,8 @@ class Blockchain(BlockchainInterface):
                     raise
                 except:
                     await transaction.rollback()
+                else:
+                    await transaction.commit()
 
         if fork_height is not None:
             # new coin records added

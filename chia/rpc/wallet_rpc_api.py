@@ -779,12 +779,13 @@ class WalletRpcApi:
                         await self.service.wallet_state_manager.tx_store.delete_unconfirmed_transactions(wallet_id)
                         if self.service.wallet_state_manager.wallets[wallet_id].type() == WalletType.POOLING_WALLET.value:
                             self.service.wallet_state_manager.wallets[wallet_id].target_state = None
-                        await transaction.commit()
                         # Update the cache
                         await self.service.wallet_state_manager.tx_store.rebuild_tx_cache()
-                        return {}
                     except:
                         await transaction.rollback()
+                    else:
+                        await transaction.commit()
+                        return {}
 
     async def get_transaction_count(self, request):
         wallet_id = int(request["wallet_id"])
