@@ -40,13 +40,13 @@ class CoinStore:
             # only represent a single peak
             await self.coin_record_db.execute(
                 "CREATE TABLE IF NOT EXISTS coin_record("
-                "coin_name blob PRIMARY KEY,"
+                f"coin_name {'blob' if self.db_wrapper.db.url.dialect == 'sqlite' else 'bytea'} PRIMARY KEY,"
                 " confirmed_index bigint,"
                 " spent_index bigint,"  # if this is zero, it means the coin has not been spent
                 " coinbase int,"
-                " puzzle_hash blob,"
-                " coin_parent blob,"
-                " amount blob,"  # we use a blob of 8 bytes to store uint64
+                f" puzzle_hash {'blob' if self.db_wrapper.db.url.dialect == 'sqlite' else 'bytea'},"
+                f" coin_parent {'blob' if self.db_wrapper.db.url.dialect == 'sqlite' else 'bytea'},"
+                f" amount {'blob' if self.db_wrapper.db.url.dialect == 'sqlite' else 'bytea'},"  # we use a blob of 8 bytes to store uint64
                 " timestamp bigint)"
             )
 
@@ -64,7 +64,7 @@ class CoinStore:
                     " coinbase int,"
                     " puzzle_hash text,"
                     " coin_parent text,"
-                    " amount blob,"
+                    f" amount {'blob' if self.db_wrapper.db.url.dialect == 'sqlite' else 'bytea'},"
                     " timestamp bigint)"
                 )
             )

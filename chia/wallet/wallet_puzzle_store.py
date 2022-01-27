@@ -44,7 +44,7 @@ class WalletPuzzleStore:
                 " puzzle_hash text PRIMARY_KEY,"
                 " wallet_type int,"
                 " wallet_id int,"
-                " used tinyint)"
+                f" used {'tinyint' if self.db_wrapper.db.url.dialect == 'sqlite' else 'smallint'})"
             )
         )
         await self.db_connection.execute(

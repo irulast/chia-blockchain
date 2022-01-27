@@ -64,10 +64,10 @@ async def setup_db(db: DBWrapper):
     if db.db_version == 2:
         await db.db.execute(
             "CREATE TABLE IF NOT EXISTS full_blocks("
-            "header_hash blob PRIMARY KEY,"
-            "prev_hash blob,"
+            f"header_hash {'blob' if db.db.url.dialect == 'sqlite' else 'bytea'} PRIMARY KEY,"
+            f"prev_hash {'blob' if db.db.url.dialect == 'sqlite' else 'bytea'},"
             "height bigint,"
-            "sub_epoch_summary blob)"
+            f"sub_epoch_summary {'blob' if db.db.url.dialect == 'sqlite' else 'bytea'})"
         )
         await db.db.execute("CREATE TABLE IF NOT EXISTS current_peak(key int PRIMARY KEY, hash blob)")
 
@@ -79,8 +79,8 @@ async def setup_db(db: DBWrapper):
             "header_hash text PRIMARY KEY,"
             "prev_hash text,"
             "height bigint,"
-            "sub_epoch_summary blob,"
-            "is_peak tinyint)"
+            f"sub_epoch_summary {'blob' if db.db.url.dialect == 'sqlite' else 'bytea'},"
+            f"is_peak {'tinyint' if db.db.url.dialect == 'sqlite' else 'smallint'})"
         )
         await db.db.execute("CREATE INDEX IF NOT EXISTS height on block_records(height)")
         await db.db.execute("CREATE INDEX IF NOT EXISTS hh on block_records(header_hash)")

@@ -56,17 +56,17 @@ async def setup_db(name: str, db_version: int) -> DBWrapper:
     connection = create_database(str(db_filename))
     await connection.connect()
 
-    def sql_trace_callback(req: str):
-        sql_log_path = "sql.log"
-        timestamp = datetime.now().strftime("%H:%M:%S.%f")
-        log = open(sql_log_path, "a")
-        log.write(timestamp + " " + req + "\n")
-        log.close()
+    # def sql_trace_callback(req: str):
+    #     sql_log_path = "sql.log"
+    #     timestamp = datetime.now().strftime("%H:%M:%S.%f")
+    #     log = open(sql_log_path, "a")
+    #     log.write(timestamp + " " + req + "\n")
+    #     log.close()
 
-    if "--sql-logging" in sys.argv:
-        await connection.set_trace_callback(sql_trace_callback)
-
-    await connection.execute("pragma journal_mode=wal")
-    await connection.execute("pragma synchronous=full")
+    # if "--sql-logging" in sys.argv:
+    #     await connection.set_trace_callback(sql_trace_callback)
+    if connection.url.dialect == "sqlite":
+        await connection.execute("pragma journal_mode=wal")
+        await connection.execute("pragma synchronous=full")
 
     return DBWrapper(connection, False, db_version)

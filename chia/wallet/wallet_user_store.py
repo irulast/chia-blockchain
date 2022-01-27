@@ -27,7 +27,7 @@ class WalletUserStore:
         await self.db_connection.execute(
             (
                 "CREATE TABLE IF NOT EXISTS users_wallets("
-                "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                f"id INTEGER PRIMARY KEY {'AUTOINCREMENT' if self.db_connection.url.dialect == 'sqlite' else 'SERIAL'},"
                 " name text,"
                 " wallet_type int,"
                 " data text)"

@@ -33,13 +33,13 @@ class WalletTransactionStore:
         await self.db_connection.execute(
             (
                 "CREATE TABLE IF NOT EXISTS transaction_record("
-                " transaction_record blob,"
+                f" transaction_record {'blob' if self.db_connection.url.dialect == 'sqlite' else 'bytea'},"
                 " bundle_id text PRIMARY KEY,"  # NOTE: bundle_id is being stored as bytes, not hex
                 " confirmed_at_height bigint,"
                 " created_at_time bigint,"
                 " to_puzzle_hash text,"
-                " amount blob,"
-                " fee_amount blob,"
+                f" amount {'blob' if self.db_connection.url.dialect == 'sqlite' else 'bytea'},"
+                f" fee_amount {'blob' if self.db_connection.url.dialect == 'sqlite' else 'bytea'},"
                 " confirmed int,"
                 " sent int,"
                 " wallet_id bigint,"

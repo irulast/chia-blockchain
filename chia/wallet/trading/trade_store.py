@@ -30,7 +30,7 @@ class TradeStore:
         await self.db_connection.execute(
             (
                 "CREATE TABLE IF NOT EXISTS trade_records("
-                " trade_record blob,"
+                f" trade_record {'blob' if self.db_connection.url.dialect == 'sqlite' else 'bytea'},"
                 " trade_id text PRIMARY KEY,"
                 " status int,"
                 " confirmed_at_index int,"

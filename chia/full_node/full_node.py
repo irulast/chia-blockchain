@@ -158,23 +158,24 @@ class FullNode:
         # create the store (db) and full node instance
         self.connection = create_database(str(self.db_path))
         await self.connection.connect()
-        await self.connection.execute("pragma journal_mode=wal")
+        if self.connection.url.dialect == "sqlite":
+            await self.connection.execute("pragma journal_mode=wal")
 
-        await self.connection.execute(
-            "pragma synchronous={}".format(db_synchronous_on(self.config.get("db_sync", "auto"), self.db_path))
-        )
+            await self.connection.execute(
+                "pragma synchronous={}".format(db_synchronous_on(self.config.get("db_sync", "auto"), self.db_path))
+            )
 
-        if self.config.get("log_sqlite_cmds", False):
-            sql_log_path = path_from_root(self.root_path, "log/sql.log")
-            self.log.info(f"logging SQL commands to {sql_log_path}")
+        # if self.config.get("log_sqlite_cmds", False):
+        #     sql_log_path = path_from_root(self.root_path, "log/sql.log")
+        #     self.log.info(f"logging SQL commands to {sql_log_path}")
 
-            def sql_trace_callback(req: str):
-                timestamp = datetime.now().strftime("%H:%M:%S.%f")
-                log = open(sql_log_path, "a")
-                log.write(timestamp + " " + req + "\n")
-                log.close()
+        #     def sql_trace_callback(req: str):
+        #         timestamp = datetime.now().strftime("%H:%M:%S.%f")
+        #         log = open(sql_log_path, "a")
+        #         log.write(timestamp + " " + req + "\n")
+        #         log.close()
 
-            await self.connection.set_trace_callback(sql_trace_callback)
+        #     await self.connection.set_trace_callback(sql_trace_callback)
 
         db_version: int = await lookup_db_version(self.connection)
 

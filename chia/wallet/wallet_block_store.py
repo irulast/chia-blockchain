@@ -40,7 +40,7 @@ class WalletBlockStore:
         self.db = db_wrapper.db
         await self.db.execute(
             "CREATE TABLE IF NOT EXISTS header_blocks(header_hash text PRIMARY KEY, height int,"
-            " timestamp int, block blob)"
+            f" timestamp int, block {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})"
         )
 
         await self.db.execute("CREATE INDEX IF NOT EXISTS header_hash on header_blocks(header_hash)")
@@ -53,11 +53,11 @@ class WalletBlockStore:
         await self.db.execute(
             "CREATE TABLE IF NOT EXISTS block_records(header_hash "
             "text PRIMARY KEY, prev_hash text, height bigint, weight bigint, total_iters text,"
-            "block blob, sub_epoch_summary blob, is_peak tinyint)"
+            f"block {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'}, sub_epoch_summary {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'}, is_peak {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'})"
         )
 
         await self.db.execute(
-            "CREATE TABLE IF NOT EXISTS additional_coin_spends(header_hash text PRIMARY KEY, spends_list_blob blob)"
+            f"CREATE TABLE IF NOT EXISTS additional_coin_spends(header_hash text PRIMARY KEY, spends_list_blob {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})"
         )
 
         # Height index so we can look up in order of height for sync purposes

@@ -39,27 +39,27 @@ class BlockStore:
             # of FullBlock, this can use less space
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS full_blocks("
-                "header_hash blob PRIMARY KEY,"
-                "prev_hash blob,"
+                f"header_hash {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'} PRIMARY KEY,"
+                f"prev_hash {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'},"
                 "height bigint,"
-                "sub_epoch_summary blob,"
-                "is_fully_compactified tinyint,"
-                "in_main_chain tinyint,"
-                "block blob,"
-                "block_record blob)"
+                f"sub_epoch_summary {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'},"
+                f"is_fully_compactified {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'},"
+                f"in_main_chain {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'},"
+                f"block {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'},"
+                f"block_record {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})"
             )
 
             # This is a single-row table containing the hash of the current
             # peak. The "key" field is there to make update statements simple
-            await self.db.execute("CREATE TABLE IF NOT EXISTS current_peak(key int PRIMARY KEY, hash blob)")
+            await self.db.execute(f"CREATE TABLE IF NOT EXISTS current_peak(key int PRIMARY KEY, hash {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})")
 
             await self.db.execute("CREATE INDEX IF NOT EXISTS height on full_blocks(height)")
 
             # Sub epoch segments for weight proofs
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3("
-                "ses_block_hash blob PRIMARY KEY,"
-                "challenge_segments blob)"
+                f"ses_block_hash {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'} PRIMARY KEY,"
+                f"challenge_segments {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})"
             )
 
             await self.db.execute(
@@ -73,20 +73,20 @@ class BlockStore:
 
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS full_blocks(header_hash text PRIMARY KEY, height bigint,"
-                "  is_block tinyint, is_fully_compactified tinyint, block blob)"
+                f"  is_block {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'}, is_fully_compactified {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'}, block {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})"
             )
 
             # Block records
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS block_records(header_hash "
                 "text PRIMARY KEY, prev_hash text, height bigint,"
-                "block blob, sub_epoch_summary blob, is_peak tinyint, is_block tinyint)"
+                f"block {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'}, sub_epoch_summary {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'}, is_peak {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'}, is_block {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'})"
             )
 
             # Sub epoch segments for weight proofs
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3(ses_block_hash text PRIMARY KEY,"
-                "challenge_segments blob)"
+                f"challenge_segments {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})"
             )
 
             # Height index so we can look up in order of height for sync purposes
