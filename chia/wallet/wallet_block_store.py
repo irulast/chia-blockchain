@@ -13,6 +13,7 @@ from chia.types.header_block import HeaderBlock
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32, uint64
 from chia.util.lru_cache import LRUCache
+from chia.util.sql_dialects import dialect_upsert
 from chia.util.streamable import Streamable, streamable
 from chia.wallet.block_record import HeaderBlockRecord
 
@@ -92,39 +93,41 @@ class WalletBlockStore:
             timestamp = header_block_record.header.foliage_transaction_block.timestamp
         else:
             timestamp = uint64(0)
+        row_to_insert = {
+            "header_hash": header_block_record.header_hash.hex(),
+            "height": header_block_record.height,
+            "timestamp": timestamp,
+            "block": bytes(header_block_record),
+        }
         await self.db.execute(
-            "INSERT OR REPLACE INTO header_blocks VALUES(:header_hash, :height, :timestamp, :block)",
-            {
-                "header_hash": header_block_record.header_hash.hex(),
-                "height": header_block_record.height,
-                "timestamp": timestamp,
-                "block": bytes(header_block_record),
-            }
+            dialect_upsert('header_blocks', ['header_hash'], row_to_insert.keys(), self.db.url.dialect),
+            row_to_insert
         )
 
-        
+        row_to_insert = {
+            "header_hash": header_block_record.header.header_hash.hex(),
+            "prev_hash": header_block_record.header.prev_header_hash.hex(),
+            "height": header_block_record.header.height,
+            "weight": header_block_record.header.weight.to_bytes(128 // 8, "big", signed=False).hex(),
+            "total_iters": header_block_record.header.total_iters.to_bytes(128 // 8, "big", signed=False).hex(),
+            "block": bytes(block_record),
+            "sub_epoch_summary": None
+                if block_record.sub_epoch_summary_included is None
+                else bytes(block_record.sub_epoch_summary_included),
+            "is_peak": False,
+        }
         await self.db.execute(
-            "INSERT OR REPLACE INTO block_records VALUES(:header_hash, :prev_hash, :height, :weight, :total_iters, :block, :sub_epoch_summary, :is_peak)",
-            {
-                "header_hash": header_block_record.header.header_hash.hex(),
-                "prev_hash": header_block_record.header.prev_header_hash.hex(),
-                "height": header_block_record.header.height,
-                "weight": header_block_record.header.weight.to_bytes(128 // 8, "big", signed=False).hex(),
-                "total_iters": header_block_record.header.total_iters.to_bytes(128 // 8, "big", signed=False).hex(),
-                "block": bytes(block_record),
-                "sub_epoch_summary": None
-                    if block_record.sub_epoch_summary_included is None
-                    else bytes(block_record.sub_epoch_summary_included),
-                "is_peak": False,
-            }
+            dialect_upsert('block_records', ['header_hash'], row_to_insert.keys(), self.db.url.dialect),
+            row_to_insert
         )
         
 
         if len(additional_coin_spends) > 0:
             blob: bytes = bytes(AdditionalCoinSpends(additional_coin_spends))
+            row_to_insert = {"header_hash": header_block_record.header_hash.hex(), "spends_list_blob":  blob},
             await self.db.execute(
-                "INSERT OR REPLACE INTO additional_coin_spends VALUES(:header_hash, :spends_list_blob)",
-                {"header_hash": header_block_record.header_hash.hex(), "spends_list_blob":  blob},
+                dialect_upsert('additional_coin_spends', ['header_hash'], row_to_insert.keys(), self.db.url.dialect),
+                row_to_insert
             )
 
     async def get_header_block_at(self, heights: List[uint32]) -> List[HeaderBlock]:

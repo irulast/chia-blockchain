@@ -5,6 +5,7 @@ from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32, uint64
+from chia.util.sql_dialects import dialect_upsert
 from chia.wallet.util.wallet_types import WalletType
 from chia.wallet.wallet_coin_record import WalletCoinRecord
 from databases import Database
@@ -95,21 +96,21 @@ class WalletCoinStore:
             if not record.spent:
                 self.unspent_coin_wallet_cache[record.wallet_id] = {}
                 self.unspent_coin_wallet_cache[record.wallet_id][name] = record
-
+        row_to_insert = {
+            "coin_name": name.hex(),
+            "confirmed_height": record.confirmed_block_height,
+            "spent_height": record.spent_block_height,
+            "spent": int(record.spent),
+            "coinbase": int(record.coinbase),
+            "puzzle_hash": str(record.coin.puzzle_hash.hex()),
+            "coin_parent": str(record.coin.parent_coin_info.hex()),
+            "amount": bytes(record.coin.amount),
+            "wallet_type": record.wallet_type,
+            "wallet_id": record.wallet_id,
+        }
         await self.db_connection.execute(
-            "INSERT OR REPLACE INTO coin_record VALUES(:coin_name, :confirmed_height, :spent_height, :spent, :coinbase, :puzzle_hash, :coin_parent, :amount, :wallet_type, :wallet_id)",
-            {
-                "coin_name": name.hex(),
-                "confirmed_height": record.confirmed_block_height,
-                "spent_height": record.spent_block_height,
-                "spent": int(record.spent),
-                "coinbase": int(record.coinbase),
-                "puzzle_hash": str(record.coin.puzzle_hash.hex()),
-                "coin_parent": str(record.coin.parent_coin_info.hex()),
-                "amount": bytes(record.coin.amount),
-                "wallet_type": record.wallet_type,
-                "wallet_id": record.wallet_id,
-            }
+            dialect_upsert('coin_record', ['coin_name'], row_to_insert.keys(), self.db_connection.url.dialect),
+            row_to_insert
         )
 
     # Update coin_record to be spent in DB

@@ -13,6 +13,7 @@ from chia.types.weight_proof import SubEpochChallengeSegment, SubEpochSegments
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32
 from chia.util.lru_cache import LRUCache
+from chia.util.sql_dialects import dialect_upsert
 
 log = logging.getLogger(__name__)
 
@@ -153,56 +154,58 @@ class BlockStore:
                 if block_record.sub_epoch_summary_included is None
                 else bytes(block_record.sub_epoch_summary_included)
             )
-
+            row_to_insert = {
+                "header_hash": header_hash,
+                "prev_hash": block.prev_header_hash,
+                "height": block.height,
+                "sub_epoch_summary": ses,
+                "is_fully_compactified": int(block.is_fully_compactified()),
+                "in_main_chain": 0,  # in_main_chain
+                "block": self.compress(block),
+                "block_record": bytes(block_record),
+            }
             await self.db.execute(
-                "INSERT OR REPLACE INTO full_blocks VALUES(:header_hash, :prev_header_hash, :height, :ses, :is_fully_compactified, :in_main_chain, :block, :block_record)",
-                {
-                    "header_hash": header_hash,
-                    "prev_header_hash": block.prev_header_hash,
-                    "height": block.height,
-                    "ses": ses,
-                    "is_fully_compactified": int(block.is_fully_compactified()),
-                    "in_main_chain": 0,  # in_main_chain
-                    "block": self.compress(block),
-                    "block_record": bytes(block_record),
-                },
+                dialect_upsert("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
+                row_to_insert
             )
 
         else:
+            row_to_insert = {
+                "header_hash": header_hash.hex(),
+                "height": block.height,
+                "is_block": int(block.is_transaction_block()),
+                "is_fully_compactified": int(block.is_fully_compactified()),
+                "block": bytes(block),
+            }
             await self.db.execute(
-                "INSERT OR REPLACE INTO full_blocks VALUES(:header_hash, :height, :is_transaction_block, :is_fully_compactified, :block)",
-                {
-                    "header_hash": header_hash.hex(),
-                    "height": block.height,
-                    "is_transaction_block": int(block.is_transaction_block()),
-                    "is_fully_compactified": int(block.is_fully_compactified()),
-                    "block": bytes(block),
-                },
+                dialect_upsert("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
+                row_to_insert
             )
-
+            row_to_insert = {
+                "header_hash": header_hash.hex(),
+                "prev_hash": block.prev_header_hash.hex(),
+                "height": block.height,
+                "block": bytes(block_record),
+                "sub_epoch_summary":
+                    None
+                    if block_record.sub_epoch_summary_included is None
+                    else bytes(block_record.sub_epoch_summary_included),
+                "is_peak": False,
+                "is_block": block.is_transaction_block(),
+            }
             await self.db.execute(
-                "INSERT OR REPLACE INTO block_records VALUES(:header_hash, :prev_header_hash, :height, :block_record, :sub_epoch_summary_included, :is_peak, :is_transaction_block)",
-                {
-                    "header_hash": header_hash.hex(),
-                    "prev_header_hash": block.prev_header_hash.hex(),
-                    "height": block.height,
-                    "block_record": bytes(block_record),
-                    "sub_epoch_summary_included":
-                        None
-                        if block_record.sub_epoch_summary_included is None
-                        else bytes(block_record.sub_epoch_summary_included),
-                    "is_peak": False,
-                    "is_transaction_block": block.is_transaction_block(),
-                },
+                dialect_upsert("block_records", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
+                row_to_insert
             )
 
     async def persist_sub_epoch_challenge_segments(
         self, ses_block_hash: bytes32, segments: List[SubEpochChallengeSegment]
     ) -> None:
         async with self.db_wrapper.lock:
+            row_to_insert = {"ses_block_hash": self.maybe_to_hex(ses_block_hash), "challenge_segments": bytes(SubEpochSegments(segments))}
             await self.db.execute(
-                "INSERT OR REPLACE INTO sub_epoch_segments_v3 VALUES(:ses_block_hash, :segments)",
-                {"ses_block_hash": self.maybe_to_hex(ses_block_hash), "segments": bytes(SubEpochSegments(segments))},
+                dialect_upsert("sub_epoch_segments_v3", ["ses_block_hash"], row_to_insert.keys(), self.db.url.dialect),
+                row_to_insert,
             )
 
     async def get_sub_epoch_challenge_segments(
@@ -448,7 +451,8 @@ class BlockStore:
 
         if self.db_wrapper.db_version == 2:
             # Note: we use the key field as 0 just to ensure all inserts replace the existing row
-            await self.db.execute("INSERT OR REPLACE INTO current_peak VALUES(:key, :header_hash)", {"key": 0, "header_hash": header_hash})
+            row_to_insert = {"key": 0, "header_hash": header_hash}
+            await self.db.execute(dialect_upsert('current_peak', ['key'], row_to_insert.keys(), self.db.url.dialect), row_to_insert)
         else:
             await self.db.execute("UPDATE block_records SET is_peak=0 WHERE is_peak=1")
             await self.db.execute(

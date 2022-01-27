@@ -8,6 +8,7 @@ from databases import Database
 from typing import List, Dict
 
 from chia.seeder.peer_record import PeerRecord, PeerReliability
+from chia.util.sql_dialects import dialect_upsert
 
 log = logging.getLogger(__name__)
 
@@ -99,49 +100,49 @@ class CrawlStore:
             return
 
         added_timestamp = int(time.time())
+        row_to_insert = {
+            "peer_id": peer_record.peer_id,
+            "ip_address": peer_record.ip_address,
+            "port": peer_record.port,
+            "connected": int(peer_record.connected),
+            "last_try_timestamp": peer_record.last_try_timestamp,
+            "try_count": peer_record.try_count,
+            "connected_timestamp": peer_record.connected_timestamp,
+            "added_timestamp": added_timestamp,
+            "best_timestamp": peer_record.best_timestamp,
+            "version": peer_record.version,
+            "handshake_time": peer_record.handshake_time,
+            "tls_version": peer_record.tls_version,
+        }
         await self.crawl_db.execute(
-            "INSERT OR REPLACE INTO peer_records VALUES(:peer_id, :ip_address, :port, :connected, :last_try_timestamp, :try_count, :connected_timestamp, :added_timestamp, :best_timestamp, :version, :handshake_time, :tls_version)",
-            {
-                "peer_id": peer_record.peer_id,
-                "ip_address": peer_record.ip_address,
-                "port": peer_record.port,
-                "connected": int(peer_record.connected),
-                "last_try_timestamp": peer_record.last_try_timestamp,
-                "try_count": peer_record.try_count,
-                "connected_timestamp": peer_record.connected_timestamp,
-                "added_timestamp": added_timestamp,
-                "best_timestamp": peer_record.best_timestamp,
-                "version": peer_record.version,
-                "handshake_time": peer_record.handshake_time,
-                "tls_version": peer_record.tls_version,
-            }
+            dialect_upsert('peer_records', ['peer_id'], row_to_insert.keys(), self.crawl_db.url.dialect),
+            row_to_insert
         )
-
+        row_to_insert = {
+            "peer_id": peer_reliability.peer_id,
+            "ignore_till": peer_reliability.ignore_till,
+            "ban_till": peer_reliability.ban_till,
+            "stat_2h_w": peer_reliability.stat_2h.weight,
+            "stat_2h_c": peer_reliability.stat_2h.count,
+            "stat_2h_r": peer_reliability.stat_2h.reliability,
+            "stat_8h_w": peer_reliability.stat_8h.weight,
+            "stat_8h_c": peer_reliability.stat_8h.count,
+            "stat_8h_r": peer_reliability.stat_8h.reliability,
+            "stat_1d_w": peer_reliability.stat_1d.weight,
+            "stat_1d_c": peer_reliability.stat_1d.count,
+            "stat_1d_r": peer_reliability.stat_1d.reliability,
+            "stat_1w_w": peer_reliability.stat_1w.weight,
+            "stat_1w_c": peer_reliability.stat_1w.count,
+            "stat_1w_r": peer_reliability.stat_1w.reliability,
+            "stat_1m_w": peer_reliability.stat_1m.weight,
+            "stat_1m_c": peer_reliability.stat_1m.count,
+            "stat_1m_r": peer_reliability.stat_1m.reliability,
+            "tries": peer_reliability.tries,
+            "successes": peer_reliability.successes,
+        },
         await self.crawl_db.execute(
-            "INSERT OR REPLACE INTO peer_reliability"
-            " VALUES(:peer_id, :ignore_till, :ban_till, :stat_2h_weight, :stat_2h_count, :stat_2h_reliability, :stat_8h_weight, :stat_8h_count, :stat_8h_reliability, :stat_1d_weight, :stat_1d_count, :stat_1d_reliability, :stat_1w_weight, :stat_1w_count, :stat_1w_reliability, :stat_1m_weight, :stat_1m_count, :stat_1m_reliability, :tries, :successes)",
-            {
-                "peer_id": peer_reliability.peer_id,
-                "ignore_till": peer_reliability.ignore_till,
-                "ban_till": peer_reliability.ban_till,
-                "stat_2h_weight": peer_reliability.stat_2h.weight,
-                "stat_2h_count": peer_reliability.stat_2h.count,
-                "stat_2h_reliability": peer_reliability.stat_2h.reliability,
-                "stat_8h_weight": peer_reliability.stat_8h.weight,
-                "stat_8h_count": peer_reliability.stat_8h.count,
-                "stat_8h_reliability": peer_reliability.stat_8h.reliability,
-                "stat_1d_weight": peer_reliability.stat_1d.weight,
-                "stat_1d_count": peer_reliability.stat_1d.count,
-                "stat_1d_reliability": peer_reliability.stat_1d.reliability,
-                "stat_1w_weight": peer_reliability.stat_1w.weight,
-                "stat_1w_count": peer_reliability.stat_1w.count,
-                "stat_1w_reliability": peer_reliability.stat_1w.reliability,
-                "stat_1m_weight": peer_reliability.stat_1m.weight,
-                "stat_1m_count": peer_reliability.stat_1m.count,
-                "stat_1m_reliability": peer_reliability.stat_1m.reliability,
-                "tries": peer_reliability.tries,
-                "successes": peer_reliability.successes,
-            },
+            dialect_upsert('peer_reliability', ['peer_id'], row_to_insert.keys(), self.crawl_db.url.dialect),
+            row_to_insert
         )
 
 
@@ -336,7 +337,7 @@ class CrawlStore:
         log.error("Saving new good_peers to DB...")
         for peer in peers:
             await self.crawl_db.execute(
-                "INSERT OR REPLACE INTO good_peers VALUES(:peer)",
+                "INSERT INTO good_peers VALUES(:peer)",
                 {"peer": peer},
             )
         log.error(" - Done saving new good_peers to DB...")

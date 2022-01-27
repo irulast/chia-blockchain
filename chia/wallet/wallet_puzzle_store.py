@@ -8,6 +8,7 @@ from blspy import G1Element
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32
+from chia.util.sql_dialects import dialect_upsert
 from chia.wallet.derivation_record import DerivationRecord
 from chia.wallet.util.wallet_types import WalletType
 
@@ -96,11 +97,11 @@ class WalletPuzzleStore:
                         "used": 0,
                     }
                 )
-
-            await self.db_connection.execute_many(
-                "INSERT OR REPLACE INTO derivation_paths VALUES(:derivation_index, :pubkey, :puzzle_hash, :wallet_type, :wallet_id, :used)",
-                sql_records,
-            )
+            if len(sql_records) > 0:
+                await self.db_connection.execute_many(
+                    dialect_upsert('derivation_paths', ['puzzle_hash'], sql_records[0].keys(), self.db_connection.url.dialect),
+                    sql_records,
+                )
 
         finally:
             if not in_transaction:

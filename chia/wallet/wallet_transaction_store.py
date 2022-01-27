@@ -8,6 +8,7 @@ from chia.types.mempool_inclusion_status import MempoolInclusionStatus
 from chia.util.db_wrapper import DBWrapper
 from chia.util.errors import Err
 from chia.util.ints import uint8, uint32
+from chia.util.sql_dialects import dialect_upsert
 from chia.wallet.transaction_record import TransactionRecord
 from chia.wallet.transaction_sorting import SortKey
 from chia.wallet.util.transaction_type import TransactionType
@@ -111,22 +112,23 @@ class WalletTransactionStore:
         if not in_transaction:
             await self.db_wrapper.lock.acquire()
         try:
+            row_to_insert = {
+                "transaction_record": bytes(record),
+                "bundle_id": record.name,
+                "confirmed_at_height": record.confirmed_at_height,
+                "created_at_time": record.created_at_time,
+                "to_puzzle_hash": record.to_puzzle_hash.hex(),
+                "amount": bytes(record.amount),
+                "fee_amount": bytes(record.fee_amount),
+                "confirmed": int(record.confirmed),
+                "sent": record.sent,
+                "wallet_id": record.wallet_id,
+                "trade_id": record.trade_id,
+                "type": record.type,
+            }
             await self.db_connection.execute(
-                "INSERT OR REPLACE INTO transaction_record VALUES(:transaction_record, :bundle_id, :confirmed_at_height, :created_at_time, :to_puzzle_hash, :amount, :fee_amount, :confirmed, :sent, :wallet_id, :trade_id, :type)",
-                {
-                    "transaction_record": bytes(record),
-                    "bundle_id": record.name,
-                    "confirmed_at_height": record.confirmed_at_height,
-                    "created_at_time": record.created_at_time,
-                    "to_puzzle_hash": record.to_puzzle_hash.hex(),
-                    "amount": bytes(record.amount),
-                    "fee_amount": bytes(record.fee_amount),
-                    "confirmed": int(record.confirmed),
-                    "sent": record.sent,
-                    "wallet_id": record.wallet_id,
-                    "trade_id": record.trade_id,
-                    "type": record.type,
-                }
+                dialect_upsert('transaction_record', ['bundle_id'], row_to_insert.keys(), self.db_connection.url.dialect),
+                row_to_insert
             )
         except BaseException:
             if not in_transaction:

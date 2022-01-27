@@ -4,6 +4,7 @@ from databases import Database
 
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.util.db_wrapper import DBWrapper
+from chia.util.sql_dialects import dialect_upsert
 
 
 class WalletInterestedStore:
@@ -42,7 +43,7 @@ class WalletInterestedStore:
             await self.db_wrapper.lock.acquire()
         try:
             await self.db_connection.execute(
-                "INSERT OR REPLACE INTO interested_coins VALUES (:coin_id)", {"coin_id": coin_id.hex()}
+                "INSERT INTO interested_coins VALUES (:coin_id)", {"coin_id": coin_id.hex()}
             )
         finally:
             if not in_transaction:
@@ -67,8 +68,10 @@ class WalletInterestedStore:
         if not in_transaction:
             await self.db_wrapper.lock.acquire()
         try:
+            row_to_insert = {"puzzle_hash": puzzle_hash.hex(), "wallet_id":  wallet_id}
             await self.db_connection.execute(
-                "INSERT OR REPLACE INTO interested_puzzle_hashes VALUES (:puzzle_hash, :wallet_id)", {"puzzle_hash": puzzle_hash.hex(), "wallet_id":  wallet_id}
+                dialect_upsert('interested_puzzle_hashes', ['puzzle_hash'], row_to_insert.keys(), self.db_connection.url.dialect),
+                row_to_insert
             )
         finally:
             if not in_transaction:

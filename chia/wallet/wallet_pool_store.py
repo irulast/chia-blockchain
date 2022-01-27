@@ -6,6 +6,7 @@ from databases import Database
 from chia.types.coin_spend import CoinSpend
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32
+from chia.util.sql_dialects import dialect_upsert
 
 log = logging.getLogger(__name__)
 
@@ -59,15 +60,15 @@ class WalletPoolStore:
                 raise ValueError("New spend does not extend")
 
         all_state_transitions.append((height, spend))
-
+        row_to_insert = {
+            "transition_index": len(all_state_transitions) - 1,
+            "wallet_id": wallet_id,
+            "height": height,
+            "coin_spend": bytes(spend),
+        }
         await self.db_connection.execute(
-            "INSERT OR REPLACE INTO pool_state_transitions VALUES (:transition_index, :wallet_id, :height, :coin_spend)",
-            {
-                "transition_index": len(all_state_transitions) - 1,
-                "wallet_id": wallet_id,
-                "height": height,
-                "coin_spend": bytes(spend),
-            }
+            dialect_upsert('pool_state_transitions', ['transition_index', 'wallet_id'], row_to_insert.keys(), self.db_connection.url.dialect),
+            row_to_insert
         )
 
     def get_spends_for_wallet(self, wallet_id: int) -> List[Tuple[uint32, CoinSpend]]:

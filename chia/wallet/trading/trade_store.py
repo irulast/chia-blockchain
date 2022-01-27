@@ -7,6 +7,7 @@ from chia.types.mempool_inclusion_status import MempoolInclusionStatus
 from chia.util.db_wrapper import DBWrapper
 from chia.util.errors import Err
 from chia.util.ints import uint8, uint32
+from chia.util.sql_dialects import dialect_upsert
 from chia.wallet.trade_record import TradeRecord
 from chia.wallet.trading.trade_status import TradeStatus
 
@@ -57,16 +58,17 @@ class TradeStore:
         if not in_transaction:
             await self.db_wrapper.lock.acquire()
         try:
+            row_to_insert = {
+                "trade_record": bytes(record),
+                "trade_id": record.trade_id.hex(),
+                "status": record.status,
+                "confirmed_at_index": record.confirmed_at_index,
+                "created_at_time": record.created_at_time,
+                "sent": record.sent,
+            }
             await self.db_connection.execute(
-                "INSERT OR REPLACE INTO trade_records VALUES(:trade_record, :trade_id, :status, :confirmed_at_index, :created_at_time, :sent)",
-                {
-                    "trade_record": bytes(record),
-                    "trade_id": record.trade_id.hex(),
-                    "status": record.status,
-                    "confirmed_at_index": record.confirmed_at_index,
-                    "created_at_time": record.created_at_time,
-                    "sent": record.sent,
-                }
+                dialect_upsert('trade_records', ['trade_id'], row_to_insert.keys(), self.db_connection.url.dialect),
+                row_to_insert
             )
         finally:
             if not in_transaction:
