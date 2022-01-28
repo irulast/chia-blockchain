@@ -41,7 +41,7 @@ class WalletCoinStore:
                 " coinbase int,"
                 " puzzle_hash text,"
                 " coin_parent text,"
-                f" amount {'blob' if self.db_connection.url.dialect == 'sqlite' else 'bytea'},"
+                f" amount {dialect_utils('blob', self.db_connection.url.dialect)},"
                 " wallet_type int,"
                 " wallet_id int)"
             )

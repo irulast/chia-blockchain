@@ -6,6 +6,7 @@ from chia.util.ints import uint32
 from chia.wallet.util.wallet_types import WalletType
 from chia.wallet.wallet_action import WalletAction
 from databases import Database
+from chia.util import dialect_utils
 
 
 class WalletActionStore:
@@ -28,7 +29,7 @@ class WalletActionStore:
         await self.db_connection.execute(
             (
                 "CREATE TABLE IF NOT EXISTS action_queue("
-                f"id INTEGER PRIMARY KEY {'AUTOINCREMENT' if self.db_connection.url.dialect == 'sqlite' else 'SERIAL'},"
+                f"id INTEGER {dialect_utils.clause('AUTOINCREMENT', self.db_connection.url.dialect)}  PRIMARY KEY,"
                 " name text,"
                 " wallet_id int,"
                 " wallet_type int,"

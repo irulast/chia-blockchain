@@ -9,6 +9,7 @@ from chia.types.coin_record import CoinRecord
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32, uint64
 from chia.util.lru_cache import LRUCache
+from chia.util import dialect_utils
 from time import time
 import logging
 
@@ -40,13 +41,13 @@ class CoinStore:
             # only represent a single peak
             await self.coin_record_db.execute(
                 "CREATE TABLE IF NOT EXISTS coin_record("
-                f"coin_name {'blob' if self.db_wrapper.db.url.dialect == 'sqlite' else 'bytea'} PRIMARY KEY,"
+                f"coin_name {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)} PRIMARY KEY,"
                 " confirmed_index bigint,"
                 " spent_index bigint,"  # if this is zero, it means the coin has not been spent
                 " coinbase int,"
-                f" puzzle_hash {'blob' if self.db_wrapper.db.url.dialect == 'sqlite' else 'bytea'},"
-                f" coin_parent {'blob' if self.db_wrapper.db.url.dialect == 'sqlite' else 'bytea'},"
-                f" amount {'blob' if self.db_wrapper.db.url.dialect == 'sqlite' else 'bytea'},"  # we use a blob of 8 bytes to store uint64
+                f" puzzle_hash {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"
+                f" coin_parent {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"
+                f" amount {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"  # we use a blob of 8 bytes to store uint64
                 " timestamp bigint)"
             )
 
@@ -64,7 +65,7 @@ class CoinStore:
                     " coinbase int,"
                     " puzzle_hash text,"
                     " coin_parent text,"
-                    f" amount {'blob' if self.db_wrapper.db.url.dialect == 'sqlite' else 'bytea'},"
+                    f" amount {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"
                     " timestamp bigint)"
                 )
             )

@@ -40,27 +40,27 @@ class BlockStore:
             # of FullBlock, this can use less space
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS full_blocks("
-                f"header_hash {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'} PRIMARY KEY,"
-                f"prev_hash {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'},"
+                f"header_hash {dialect_utils.data_type('blob', self.db.url.dialect)} PRIMARY KEY,"
+                f"prev_hash {dialect_utils.data_type('blob', self.db.url.dialect)},"
                 "height bigint,"
-                f"sub_epoch_summary {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'},"
-                f"is_fully_compactified {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'},"
-                f"in_main_chain {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'},"
-                f"block {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'},"
-                f"block_record {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})"
+                f"sub_epoch_summary {dialect_utils.data_type('blob', self.db.url.dialect)},"
+                f"is_fully_compactified {dialect_utils.data_type('tinyint', self.db.url.dialect)},"
+                f"in_main_chain {dialect_utils.data_type('tinyint', self.db.url.dialect)},"
+                f"block {dialect_utils.data_type('blob', self.db.url.dialect)},"
+                f"block_record {dialect_utils.data_type('blob', self.db.url.dialect)})"
             )
 
             # This is a single-row table containing the hash of the current
             # peak. The "key" field is there to make update statements simple
-            await self.db.execute(f"CREATE TABLE IF NOT EXISTS current_peak(key int PRIMARY KEY, hash {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})")
+            await self.db.execute(f"CREATE TABLE IF NOT EXISTS current_peak(key int PRIMARY KEY, hash {dialect_utils.data_type('blob', self.db.url.dialect)})")
 
             await self.db.execute("CREATE INDEX IF NOT EXISTS height on full_blocks(height)")
 
             # Sub epoch segments for weight proofs
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3("
-                f"ses_block_hash {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'} PRIMARY KEY,"
-                f"challenge_segments {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})"
+                f"ses_block_hash {dialect_utils.data_type('blob', self.db.url.dialect)} PRIMARY KEY,"
+                f"challenge_segments {dialect_utils.data_type('blob', self.db.url.dialect)})"
             )
 
             await self.db.execute(
@@ -74,20 +74,20 @@ class BlockStore:
 
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS full_blocks(header_hash text PRIMARY KEY, height bigint,"
-                f"  is_block {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'}, is_fully_compactified {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'}, block {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})"
+                f"  is_block {dialect_utils.data_type('tinyint', self.db.url.dialect)}, is_fully_compactified {dialect_utils.data_type('tinyint', self.db.url.dialect)}, block {dialect_utils.data_type('blob', self.db.url.dialect)})"
             )
 
             # Block records
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS block_records(header_hash "
                 "text PRIMARY KEY, prev_hash text, height bigint,"
-                f"block {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'}, sub_epoch_summary {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'}, is_peak {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'}, is_block {'tinyint' if self.db.url.dialect == 'sqlite' else 'smallint'})"
+                f"block {dialect_utils.data_type('blob', self.db.url.dialect)}, sub_epoch_summary {dialect_utils.data_type('blob', self.db.url.dialect)}, is_peak {dialect_utils.data_type('tinyint', self.db.url.dialect)}, is_block {dialect_utils.data_type('tinyint', self.db.url.dialect)})"
             )
 
             # Sub epoch segments for weight proofs
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3(ses_block_hash text PRIMARY KEY,"
-                f"challenge_segments {'blob' if self.db.url.dialect == 'sqlite' else 'bytea'})"
+                f"challenge_segments {dialect_utils.data_type('blob', self.db.url.dialect)})"
             )
 
             # Height index so we can look up in order of height for sync purposes

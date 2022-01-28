@@ -6,6 +6,7 @@ from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32
 from chia.wallet.util.wallet_types import WalletType
 from chia.wallet.wallet_info import WalletInfo
+from chia.util import dialect_utils
 
 
 class WalletUserStore:
@@ -27,7 +28,7 @@ class WalletUserStore:
         await self.db_connection.execute(
             (
                 "CREATE TABLE IF NOT EXISTS users_wallets("
-                f"id INTEGER PRIMARY KEY {'AUTOINCREMENT' if self.db_connection.url.dialect == 'sqlite' else 'SERIAL'},"
+                f"id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_connection.url.dialect)},"
                 " name text,"
                 " wallet_type int,"
                 " data text)"
