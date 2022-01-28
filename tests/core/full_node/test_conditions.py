@@ -30,7 +30,7 @@ from chia.util.ints import uint32
 from tests.block_tools import create_block_tools, test_constants
 from tests.util.keyring import TempKeyring
 
-from .ram_db import create_ram_blockchain
+from .temp_file_blockchain import create_temp_file_blockchain
 
 
 def cleanup_keyring(keyring: TempKeyring):
@@ -74,7 +74,7 @@ async def check_spend_bundle_validity(
     `SpendBundle`, and then invokes `receive_block` to ensure that it's accepted (if `expected_err=None`)
     or fails with the correct error code.
     """
-    temp_db, blockchain  = await create_ram_blockchain(constants)
+    temp_db, blockchain  = await create_temp_file_blockchain(constants)
     try:
         for block in blocks:
             received_block_result, err, fork_height, coin_changes = await blockchain.receive_block(block)

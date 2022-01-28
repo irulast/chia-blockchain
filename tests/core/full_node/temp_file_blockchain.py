@@ -11,7 +11,7 @@ from chia.util.db_wrapper import DBWrapper
 from chia.util.temp_file_db import TempFileDatabase
 
 
-async def create_ram_blockchain(consensus_constants: ConsensusConstants) -> Tuple[Database, Blockchain]:
+async def create_temp_file_blockchain(consensus_constants: ConsensusConstants) -> Tuple[Database, Blockchain]:
     temp_db = TempFileDatabase()
     connection = temp_db.connection
     await connection.connect()
