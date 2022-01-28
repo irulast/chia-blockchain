@@ -534,9 +534,9 @@ class CoinStore:
 
         if self.db_wrapper.db_version == 2:
             await self.coin_record_db.execute_many(
-                "UPDATE OR FAIL coin_record SET spent_index=:spent_index WHERE coin_name=:coin_name", updates
+                "UPDATE coin_record SET spent_index=:spent_index WHERE coin_name=:coin_name", updates
             )
         else:
             await self.coin_record_db.execute_many(
-                "UPDATE OR FAIL coin_record SET spent=1,spent_index=:spent_index WHERE coin_name=:coin_name", updates
+                "UPDATE coin_record SET spent=1,spent_index=:spent_index WHERE coin_name=:coin_name", updates
             )

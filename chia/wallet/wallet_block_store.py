@@ -13,7 +13,7 @@ from chia.types.header_block import HeaderBlock
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32, uint64
 from chia.util.lru_cache import LRUCache
-from chia.util.sql_dialects import dialect_upsert
+from chia.util import dialect_utils
 from chia.util.streamable import Streamable, streamable
 from chia.wallet.block_record import HeaderBlockRecord
 
@@ -100,7 +100,7 @@ class WalletBlockStore:
             "block": bytes(header_block_record),
         }
         await self.db.execute(
-            dialect_upsert('header_blocks', ['header_hash'], row_to_insert.keys(), self.db.url.dialect),
+            dialect_utils.upsert_query('header_blocks', ['header_hash'], row_to_insert.keys(), self.db.url.dialect),
             row_to_insert
         )
 
@@ -117,7 +117,7 @@ class WalletBlockStore:
             "is_peak": False,
         }
         await self.db.execute(
-            dialect_upsert('block_records', ['header_hash'], row_to_insert.keys(), self.db.url.dialect),
+            dialect_utils.upsert_query('block_records', ['header_hash'], row_to_insert.keys(), self.db.url.dialect),
             row_to_insert
         )
         
@@ -126,7 +126,7 @@ class WalletBlockStore:
             blob: bytes = bytes(AdditionalCoinSpends(additional_coin_spends))
             row_to_insert = {"header_hash": header_block_record.header_hash.hex(), "spends_list_blob":  blob},
             await self.db.execute(
-                dialect_upsert('additional_coin_spends', ['header_hash'], row_to_insert.keys(), self.db.url.dialect),
+                dialect_utils.upsert_query('additional_coin_spends', ['header_hash'], row_to_insert.keys(), self.db.url.dialect),
                 row_to_insert
             )
 

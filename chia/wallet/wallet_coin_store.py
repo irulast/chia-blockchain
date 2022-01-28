@@ -5,7 +5,7 @@ from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32, uint64
-from chia.util.sql_dialects import dialect_upsert
+from chia.util import dialect_utils
 from chia.wallet.util.wallet_types import WalletType
 from chia.wallet.wallet_coin_record import WalletCoinRecord
 from databases import Database
@@ -109,7 +109,7 @@ class WalletCoinStore:
             "wallet_id": record.wallet_id,
         }
         await self.db_connection.execute(
-            dialect_upsert('coin_record', ['coin_name'], row_to_insert.keys(), self.db_connection.url.dialect),
+            dialect_utils.upsert_query('coin_record', ['coin_name'], row_to_insert.keys(), self.db_connection.url.dialect),
             row_to_insert
         )
 

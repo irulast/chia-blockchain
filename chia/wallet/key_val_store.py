@@ -4,7 +4,7 @@ from databases import Database
 
 from chia.util.byte_types import hexstr_to_bytes
 from chia.util.db_wrapper import DBWrapper
-from chia.util.sql_dialects import dialect_upsert
+from chia.util import dialect_utils
 from chia.util.streamable import Streamable
 
 
@@ -53,7 +53,7 @@ class KeyValStore:
         async with self.db_wrapper.lock:
             row_to_insert = {"key": key, "value": bytes(obj).hex()}
             await self.db_connection.execute(
-                dialect_upsert('key_val_store', ['key'], row_to_insert.keys(), self.db_connection.url.dialect),
+                dialect_utils.upsert_query('key_val_store', ['key'], row_to_insert.keys(), self.db_connection.url.dialect),
                 row_to_insert
             )
 

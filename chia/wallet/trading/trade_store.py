@@ -7,7 +7,7 @@ from chia.types.mempool_inclusion_status import MempoolInclusionStatus
 from chia.util.db_wrapper import DBWrapper
 from chia.util.errors import Err
 from chia.util.ints import uint8, uint32
-from chia.util.sql_dialects import dialect_upsert
+from chia.util import dialect_utils
 from chia.wallet.trade_record import TradeRecord
 from chia.wallet.trading.trade_status import TradeStatus
 
@@ -67,7 +67,7 @@ class TradeStore:
                 "sent": record.sent,
             }
             await self.db_connection.execute(
-                dialect_upsert('trade_records', ['trade_id'], row_to_insert.keys(), self.db_connection.url.dialect),
+                dialect_utils.upsert_query('trade_records', ['trade_id'], row_to_insert.keys(), self.db_connection.url.dialect),
                 row_to_insert
             )
         finally:

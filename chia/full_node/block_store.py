@@ -13,7 +13,7 @@ from chia.types.weight_proof import SubEpochChallengeSegment, SubEpochSegments
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32
 from chia.util.lru_cache import LRUCache
-from chia.util.sql_dialects import dialect_upsert
+from chia.util import dialect_utils
 
 log = logging.getLogger(__name__)
 
@@ -135,13 +135,13 @@ class BlockStore:
     async def rollback(self, height: int) -> None:
         if self.db_wrapper.db_version == 2:
             await self.db.execute(
-                "UPDATE OR FAIL full_blocks SET in_main_chain=0 WHERE height>:height AND in_main_chain=1", {"height": height}
+                "UPDATE full_blocks SET in_main_chain=0 WHERE height>:height AND in_main_chain=1", {"height": height}
             )
 
     async def set_in_chain(self, header_hashes: List[bytes32]) -> None:
         if self.db_wrapper.db_version == 2:
             await self.db.execute_many(
-                "UPDATE OR FAIL full_blocks SET in_main_chain=1 WHERE header_hash=:header_hash", map(lambda header_hash: {"header_hash": header_hash}, header_hashes)
+                "UPDATE full_blocks SET in_main_chain=1 WHERE header_hash=:header_hash", map(lambda header_hash: {"header_hash": header_hash}, header_hashes)
             )
 
     async def add_full_block(self, header_hash: bytes32, block: FullBlock, block_record: BlockRecord) -> None:
@@ -165,7 +165,7 @@ class BlockStore:
                 "block_record": bytes(block_record),
             }
             await self.db.execute(
-                dialect_upsert("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
+                dialect_utils.upsert_query("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
                 row_to_insert
             )
 
@@ -178,7 +178,7 @@ class BlockStore:
                 "block": bytes(block),
             }
             await self.db.execute(
-                dialect_upsert("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
+                dialect_utils.upsert_query("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
                 row_to_insert
             )
             row_to_insert = {
@@ -194,7 +194,7 @@ class BlockStore:
                 "is_block": block.is_transaction_block(),
             }
             await self.db.execute(
-                dialect_upsert("block_records", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
+                dialect_utils.upsert_query("block_records", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
                 row_to_insert
             )
 
@@ -204,7 +204,7 @@ class BlockStore:
         async with self.db_wrapper.lock:
             row_to_insert = {"ses_block_hash": self.maybe_to_hex(ses_block_hash), "challenge_segments": bytes(SubEpochSegments(segments))}
             await self.db.execute(
-                dialect_upsert("sub_epoch_segments_v3", ["ses_block_hash"], row_to_insert.keys(), self.db.url.dialect),
+                dialect_utils.upsert_query("sub_epoch_segments_v3", ["ses_block_hash"], row_to_insert.keys(), self.db.url.dialect),
                 row_to_insert,
             )
 
@@ -452,7 +452,7 @@ class BlockStore:
         if self.db_wrapper.db_version == 2:
             # Note: we use the key field as 0 just to ensure all inserts replace the existing row
             row_to_insert = {"key": 0, "header_hash": header_hash}
-            await self.db.execute(dialect_upsert('current_peak', ['key'], row_to_insert.keys(), self.db.url.dialect), row_to_insert)
+            await self.db.execute(dialect_utils.upsert_query('current_peak', ['key'], row_to_insert.keys(), self.db.url.dialect), row_to_insert)
         else:
             await self.db.execute("UPDATE block_records SET is_peak=0 WHERE is_peak=1")
             await self.db.execute(

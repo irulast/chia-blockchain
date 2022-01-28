@@ -8,7 +8,7 @@ from databases import Database
 from typing import List, Dict
 
 from chia.seeder.peer_record import PeerRecord, PeerReliability
-from chia.util.sql_dialects import dialect_upsert
+from chia.util import dialect_utils
 
 log = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ class CrawlStore:
             "tls_version": peer_record.tls_version,
         }
         await self.crawl_db.execute(
-            dialect_upsert('peer_records', ['peer_id'], row_to_insert.keys(), self.crawl_db.url.dialect),
+            dialect_utils.upsert_query('peer_records', ['peer_id'], row_to_insert.keys(), self.crawl_db.url.dialect),
             row_to_insert
         )
         row_to_insert = {
@@ -141,7 +141,7 @@ class CrawlStore:
             "successes": peer_reliability.successes,
         },
         await self.crawl_db.execute(
-            dialect_upsert('peer_reliability', ['peer_id'], row_to_insert.keys(), self.crawl_db.url.dialect),
+            dialect_utils.upsert_query('peer_reliability', ['peer_id'], row_to_insert.keys(), self.crawl_db.url.dialect),
             row_to_insert
         )
 

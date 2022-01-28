@@ -3,7 +3,7 @@ import struct
 from chia.full_node.block_height_map import BlockHeightMap
 from chia.types.blockchain_format.sub_epoch_summary import SubEpochSummary
 from chia.util.db_wrapper import DBWrapper
-from chia.util.sql_dialects import dialect_upsert
+from chia.util import dialect_utils
 
 from tests.util.db_connection import DBConnection
 from chia.types.blockchain_format.sized_bytes import bytes32
@@ -46,7 +46,7 @@ async def new_block(
         )
         if is_peak:
             row_to_insert = {"key": 0, "hash":  block_hash}
-            await db.db.execute(dialect_upsert('current_peak', ['key'], row_to_insert.keys(), db.db.url.dialect), row_to_insert)
+            await db.db.execute(dialect_utils.upsert_query('current_peak', ['key'], row_to_insert.keys(), db.db.url.dialect), row_to_insert)
     else:
         await db.db.execute(
             "INSERT INTO block_records VALUES(:header_hash, :prev_hash, :height, :sub_epoch_summary, :is_peak)",

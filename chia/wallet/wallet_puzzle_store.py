@@ -8,7 +8,7 @@ from blspy import G1Element
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32
-from chia.util.sql_dialects import dialect_upsert
+from chia.util import dialect_utils
 from chia.wallet.derivation_record import DerivationRecord
 from chia.wallet.util.wallet_types import WalletType
 
@@ -99,7 +99,7 @@ class WalletPuzzleStore:
                 )
             if len(sql_records) > 0:
                 await self.db_connection.execute_many(
-                    dialect_upsert('derivation_paths', ['puzzle_hash'], sql_records[0].keys(), self.db_connection.url.dialect),
+                    dialect_utils.upsert_query('derivation_paths', ['puzzle_hash'], sql_records[0].keys(), self.db_connection.url.dialect),
                     sql_records,
                 )
 

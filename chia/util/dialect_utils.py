@@ -5,7 +5,7 @@ class SqlDialect(Enum):
     SQLITE = 'sqlite'
     POSTGRES = 'postgresql'
 
-dialect_data_type_map = {
+data_type_map = {
     'blob' : {
         SqlDialect.SQLITE: 'blob',
         SqlDialect.POSTGRES: 'bytea'
@@ -15,11 +15,11 @@ dialect_data_type_map = {
         SqlDialect.POSTGRES: 'smallint'
     }
 }
-def dialect_data_type(data_type: str, dialect: str):
-    return dialect_data_type_map[data_type][SqlDialect(dialect)]
+def data_type(data_type: str, dialect: str):
+    return data_type_map[data_type][SqlDialect(dialect)]
 
 
-def dialect_upsert(table_name: str, primary_key_columns: List[str], columns: List[str], dialect: str):
+def upsert_query(table_name: str, primary_key_columns: List[str], columns: List[str], dialect: str):
     query_param_columns = map(lambda v: ':' + v, columns)
     
     if SqlDialect(dialect) == SqlDialect.SQLITE:
@@ -41,3 +41,5 @@ def dialect_upsert(table_name: str, primary_key_columns: List[str], columns: Lis
              f"ON CONFLICT ({', '.join(primary_key_columns)}) "
              f"{handle_conflict_str}"
          )
+    else:
+        raise Exception("Invalid or unsupported sql dialect")

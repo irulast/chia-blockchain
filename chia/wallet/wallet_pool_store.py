@@ -6,7 +6,7 @@ from databases import Database
 from chia.types.coin_spend import CoinSpend
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32
-from chia.util.sql_dialects import dialect_upsert
+from chia.util import dialect_utils
 
 log = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class WalletPoolStore:
             "coin_spend": bytes(spend),
         }
         await self.db_connection.execute(
-            dialect_upsert('pool_state_transitions', ['transition_index', 'wallet_id'], row_to_insert.keys(), self.db_connection.url.dialect),
+            dialect_utils.upsert_query('pool_state_transitions', ['transition_index', 'wallet_id'], row_to_insert.keys(), self.db_connection.url.dialect),
             row_to_insert
         )
 
