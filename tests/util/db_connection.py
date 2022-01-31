@@ -1,5 +1,4 @@
 from pathlib import Path
-from chia.util.db_factory import create_database
 from chia.util.db_wrapper import DBWrapper
 
 from chia.util.temp_file_db import TempFileDatabase

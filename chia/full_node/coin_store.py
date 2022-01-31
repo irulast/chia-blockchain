@@ -214,7 +214,7 @@ class CoinStore:
 
         rows = await self.coin_record_db.fetch_all(
             f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            f"coin_parent, amount, timestamp FROM coin_record INDEXED BY coin_puzzle_hash WHERE puzzle_hash=:puzzle_hash "
+            f"coin_parent, amount, timestamp FROM coin_record {dialect_utils.clause('INDEXED BY', self.coin_record_db.url.dialect)} coin_puzzle_hash WHERE puzzle_hash=:puzzle_hash "
             f"AND confirmed_index>=:start_height AND confirmed_index<:end_height "
             f"{'' if include_spent_coins else 'AND spent_index=0'}",
             {"puzzle_hash": self.maybe_to_hex(puzzle_hash), "start_height": start_height, "end_height": end_height},
@@ -244,7 +244,7 @@ class CoinStore:
         
         query = text(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            "coin_parent, amount, timestamp FROM coin_record INDEXED BY coin_puzzle_hash "
+            f"coin_parent, amount, timestamp FROM coin_record {dialect_utils.clause('INDEXED BY', self.coin_record_db.url.dialect)} coin_puzzle_hash "
             "WHERE confirmed_index>=:start_height AND confirmed_index<:end_height "
             'AND puzzle_hash in :puzzle_hashes_db '
             f"{'' if include_spent_coins else 'AND spent_index=0'}"
@@ -329,7 +329,7 @@ class CoinStore:
 
         query = text(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            "coin_parent, amount, timestamp FROM coin_record INDEXED BY coin_puzzle_hash "
+            f"coin_parent, amount, timestamp FROM coin_record {dialect_utils.clause('INDEXED BY', self.coin_record_db.url.dialect)} coin_puzzle_hash "
             "WHERE confirmed_index>=:start_height AND confirmed_index<:end_height "
             'AND puzzle_hash in :puzzle_hashes '
             f"{'' if include_spent_coins else 'AND spent_index=0'}",

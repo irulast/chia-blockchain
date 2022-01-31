@@ -954,6 +954,7 @@ class FullNode:
             assert validate_task.done()
             fetch_task.cancel()  # no need to cancel validate_task, if we end up here validate_task is already done
             self.log.error(f"sync from fork point failed err: {e}")
+            self.log.error(traceback.format_exc())
 
     async def send_peak_to_wallets(self):
         peak = self.blockchain.get_peak()

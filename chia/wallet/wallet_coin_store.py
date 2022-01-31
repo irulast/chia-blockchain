@@ -41,7 +41,7 @@ class WalletCoinStore:
                 " coinbase int,"
                 " puzzle_hash text,"
                 " coin_parent text,"
-                f" amount {dialect_utils('blob', self.db_connection.url.dialect)},"
+                f" amount {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
                 " wallet_type int,"
                 " wallet_id int)"
             )

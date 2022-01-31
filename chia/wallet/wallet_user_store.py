@@ -59,10 +59,16 @@ class WalletUserStore:
         if not in_transaction:
             await self.db_wrapper.lock.acquire()
         try:
-            await self.db_connection.execute(
-                "INSERT INTO users_wallets VALUES(:id, :name, :wallet_type, :data)",
-                {"id": id, "name":  name, "wallet_type":  wallet_type, "data":  data},
-            )
+            if id is None:
+                await self.db_connection.execute(
+                    "INSERT INTO users_wallets(name, wallet_type, data) VALUES(:name, :wallet_type, :data)",
+                    {"name":  name, "wallet_type":  wallet_type, "data":  data},
+                )
+            else:
+                await self.db_connection.execute(
+                    "INSERT INTO users_wallets(id, name, wallet_type, data) VALUES(:id, :name, :wallet_type, :data)",
+                    {"id": id, "name":  name, "wallet_type":  wallet_type, "data":  data},
+                )
         finally:
             if not in_transaction:
                 self.db_wrapper.lock.release()

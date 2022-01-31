@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from chia.util.streamable import Streamable, streamable
 from chia.util.files import write_file_async
 from chia.util.db_wrapper import DBWrapper
+from chia.util import dialect_utils
 
 log = logging.getLogger(__name__)
 
@@ -160,12 +161,12 @@ class BlockHeightMap:
             if self.db.db_version == 2:
                 query = (
                     "SELECT header_hash,prev_hash,height,sub_epoch_summary from full_blocks "
-                    "INDEXED BY height WHERE height>=:min_height AND height <:max_height"
+                    f"{dialect_utils.clause('INDEXED BY', self.db.db.url.dialect)} height WHERE height>=:min_height AND height <:max_height"
                 )
             else:
                 query = (
                     "SELECT header_hash,prev_hash,height,sub_epoch_summary from block_records "
-                    "INDEXED BY height WHERE height>=:min_height AND height <:max_height"
+                    f"{dialect_utils.clause('INDEXED BY', self.db.db.url.dialect)} height WHERE height>=:min_height AND height <:max_height"
                 )
 
             rows = await self.db.db.fetch_all(query, {"min_height": window_end, "max_height": height})

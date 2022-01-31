@@ -34,7 +34,7 @@ from chia.util.db_wrapper import DBWrapper
 from chia.util.errors import Err
 from chia.util.hash import std_hash
 from chia.util.ints import uint32, uint64, uint128
-from chia.util.db_factory import create_database
+from chia.util.db_factory import create_and_connect_to_wallet_database
 from chia.util.db_synchronous import db_synchronous_on
 from chia.wallet.block_record import HeaderBlockRecord
 from chia.wallet.cc_wallet.cc_wallet import CCWallet
@@ -139,8 +139,7 @@ class WalletStateManager:
         self.lock = asyncio.Lock()
         if os.environ.get("CHIA_DB_CONNECTION", None) is not None:
             self.log.debug(f"Starting in db path: {db_path}")
-        self.db_connection = create_database(str(db_path))
-        await self.db_connection.connect()
+        self.db_connection = await create_and_connect_to_wallet_database(str(db_path))
         if self.db_connection.url.dialect == "sqlite":
             await self.db_connection.execute("pragma journal_mode=wal")
 
