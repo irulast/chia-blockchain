@@ -18,7 +18,7 @@ class HintStore:
         self.db_wrapper = db_wrapper
         self.coin_record_db = db_wrapper.db
         await self.coin_record_db.execute(
-            f"CREATE TABLE IF NOT EXISTS hints(id INTEGER {dialect_utils.clause('AUTOINCREMENT', self.db_wrapper.db.url.dialect)} PRIMARY KEY , coin_id {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},  hint {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)})"
+            f"CREATE TABLE IF NOT EXISTS hints(id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_wrapper.db.url.dialect)}, coin_id {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},  hint {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)})"
         )
         await self.coin_record_db.execute("CREATE INDEX IF NOT EXISTS hint_index on hints(hint)")
         return self

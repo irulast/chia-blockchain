@@ -29,7 +29,7 @@ class WalletActionStore:
         await self.db_connection.execute(
             (
                 "CREATE TABLE IF NOT EXISTS action_queue("
-                f"id INTEGER {dialect_utils.clause('AUTOINCREMENT', self.db_connection.url.dialect)}  PRIMARY KEY,"
+                f"id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_connection.url.dialect)},"
                 " name text,"
                 " wallet_id int,"
                 " wallet_type int,"

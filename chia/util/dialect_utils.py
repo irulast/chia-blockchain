@@ -44,20 +44,27 @@ def upsert_query(table_name: str, primary_key_columns: List[str], columns: List[
         return f"INSERT OR REPLACE INTO {table_name} VALUES({', '.join(query_param_columns)})"
 
     elif SqlDialect(dialect) == SqlDialect.POSTGRES:
-        set_statements = []
-        for col in columns:
-            if col not in primary_key_columns:
-                set_statements.append(f"{col} = :{col}")
-        
-        handle_conflict_str = (
-            f"DO UPDATE SET {', '.join(set_statements)}"
-            if len(columns) > 1
-            else "DO NOTHING"
-        )
+        set_statements = _generate_set_statements(primary_key_columns, columns)
         return (
              f"INSERT INTO {table_name}({', '.join(columns)}) VALUES({', '.join(query_param_columns)}) "
              f"ON CONFLICT ({', '.join(primary_key_columns)}) "
-             f"{handle_conflict_str}"
+             f"DO UPDATE SET {', '.join(set_statements)}"
          )
+
+    elif SqlDialect(dialect) == SqlDialect.MYSQL:
+        set_statements = _generate_set_statements(primary_key_columns, columns)
+        return (
+             f"INSERT INTO {table_name}({', '.join(columns)}) VALUES({', '.join(query_param_columns)}) "
+             "ON DUPLICATE KEY UPDATE "
+             f"{', '.join(set_statements)}"
+         )
+
     else:
         raise Exception("Invalid or unsupported sql dialect")
+
+def _generate_set_statements(primary_key_columns: List[str], columns: List[str]):
+    set_statements = []
+    for col in columns:
+        if col not in primary_key_columns:
+            set_statements.append(f"{col} = :{col}")
+    return set_statements
