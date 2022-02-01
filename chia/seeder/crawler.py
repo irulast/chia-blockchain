@@ -115,7 +115,7 @@ class Crawler:
 
     async def crawl(self):
         try:
-            self.connection = create_database(str(self.db_path))
+            self.connection = await create_database(str(self.db_path))
             await self.connection.connect()
             self.crawl_store = await CrawlStore.create(self.connection)
             self.log.info("Started")

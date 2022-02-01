@@ -34,12 +34,12 @@ class WalletCoinStore:
         await self.db_connection.execute(
             (
                 "CREATE TABLE IF NOT EXISTS coin_record("
-                "coin_name text PRIMARY KEY,"
+                f"coin_name {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"
                 " confirmed_height bigint,"
                 " spent_height bigint,"
                 " spent int,"
                 " coinbase int,"
-                " puzzle_hash text,"
+                f" puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
                 " coin_parent text,"
                 f" amount {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
                 " wallet_type int,"
@@ -54,7 +54,7 @@ class WalletCoinStore:
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS coin_spent_height on coin_record(spent_height)")
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS coin_spent on coin_record(spent)")
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS coin_puzzlehash on coin_record(puzzle_hash)")
+        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS coin_puzzle_hash on coin_record(puzzle_hash)")
 
         await self.db_connection.execute("CREATE INDEX IF NOT EXISTS wallet_type on coin_record(wallet_type)")
 

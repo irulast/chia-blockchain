@@ -72,7 +72,7 @@ cond_map = {
 
 
 async def analyze_chain():
-    c = create_database(sys.argv[1])
+    c = await create_database(sys.argv[1])
     await c.connect()
     rows = await c.fetch_all("SELECT header_hash, height, block FROM full_blocks ORDER BY height")
 

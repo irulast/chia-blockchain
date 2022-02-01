@@ -30,7 +30,7 @@ class WalletActionStore:
             (
                 "CREATE TABLE IF NOT EXISTS action_queue("
                 f"id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_connection.url.dialect)},"
-                " name text,"
+                f" name {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
                 " wallet_id int,"
                 " wallet_type int,"
                 " wallet_callback text,"

@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from databases import Database
-from chia.util.db_factory import create_database
 import tempfile
 import logging
 log = logging.getLogger(__name__)

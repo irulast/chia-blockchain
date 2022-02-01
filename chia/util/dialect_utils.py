@@ -10,12 +10,17 @@ data_type_map = {
     'blob' : {
         SqlDialect.SQLITE: 'blob',
         SqlDialect.POSTGRES: 'bytea',
-        SqlDialect.MYSQL: 'bytea'
+        SqlDialect.MYSQL: 'blob',
     },
     'tinyint': {
         SqlDialect.SQLITE: 'tinyint',
         SqlDialect.POSTGRES: 'smallint',
         SqlDialect.MYSQL: 'smallint'
+    },
+    'text-as-index': {
+        SqlDialect.SQLITE: 'text',
+        SqlDialect.POSTGRES: 'text',
+        SqlDialect.MYSQL: 'varchar(255)'
     }
 }
 def data_type(data_type: str, dialect: str):

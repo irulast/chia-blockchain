@@ -78,7 +78,7 @@ async def setup_db(db: DBWrapper):
     else:
         await db.db.execute(
             "CREATE TABLE IF NOT EXISTS block_records("
-            "header_hash text PRIMARY KEY,"
+            f"header_hash {dialect_utils.data_type('text-as-index', db.db.url.dialect)} PRIMARY KEY,"
             "prev_hash text,"
             "height bigint,"
             f"sub_epoch_summary {dialect_utils.data_type('blob', db.db.url.dialect)},"

@@ -416,6 +416,9 @@ def chia_init(
     return 0
 
 async def create_database_versions_table(db_path: Path):
-    async with create_database(str(db_path)) as connection:
-            connection.execute("CREATE TABLE database_version(version int)")
-            connection.execute("INSERT INTO database_version VALUES (2)")
+    database = await create_database(str(db_path))
+    await database.connect()
+    async with database.connection() as connection:
+        connection.execute("CREATE TABLE database_version(version int)")
+        connection.execute("INSERT INTO database_version VALUES (2)")
+    await database.disconnect()

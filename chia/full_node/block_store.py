@@ -74,7 +74,7 @@ class BlockStore:
 
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS full_blocks(header_hash text PRIMARY KEY, height bigint,"
-                f"  is_block {dialect_utils.data_type('tinyint', self.db.url.dialect)}, is_fully_compactified {dialect_utils.data_type('tinyint', self.db.url.dialect)}, block {dialect_utils.data_type('blob', self.db.url.dialect)})"
+                f" is_block {dialect_utils.data_type('tinyint', self.db.url.dialect)}, is_fully_compactified {dialect_utils.data_type('tinyint', self.db.url.dialect)}, block {dialect_utils.data_type('blob', self.db.url.dialect)})"
             )
 
             # Block records

@@ -40,7 +40,7 @@ class WalletBlockStore:
         self.db_wrapper = db_wrapper
         self.db = db_wrapper.db
         await self.db.execute(
-            "CREATE TABLE IF NOT EXISTS header_blocks(header_hash text PRIMARY KEY, height int,"
+            f"CREATE TABLE IF NOT EXISTS header_blocks(header_hash {dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY, height int,"
             f" timestamp int, block {dialect_utils.data_type('blob', self.db.url.dialect)})"
         )
 
@@ -53,12 +53,12 @@ class WalletBlockStore:
         # Block records
         await self.db.execute(
             "CREATE TABLE IF NOT EXISTS block_records(header_hash "
-            "text PRIMARY KEY, prev_hash text, height bigint, weight bigint, total_iters text,"
+            f"{dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY, prev_hash text, height bigint, weight bigint, total_iters text,"
             f"block {dialect_utils.data_type('blob', self.db.url.dialect)}, sub_epoch_summary {dialect_utils.data_type('blob', self.db.url.dialect)}, is_peak {dialect_utils.data_type('tinyint', self.db.url.dialect)})"
         )
 
         await self.db.execute(
-            f"CREATE TABLE IF NOT EXISTS additional_coin_spends(header_hash text PRIMARY KEY, spends_list_blob {dialect_utils.data_type('blob', self.db.url.dialect)})"
+            f"CREATE TABLE IF NOT EXISTS additional_coin_spends(header_hash {dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY, spends_list_blob {dialect_utils.data_type('blob', self.db.url.dialect)})"
         )
 
         # Height index so we can look up in order of height for sync purposes

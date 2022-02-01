@@ -35,10 +35,10 @@ class WalletTransactionStore:
             (
                 "CREATE TABLE IF NOT EXISTS transaction_record("
                 f" transaction_record {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
-                " bundle_id text PRIMARY KEY,"  # NOTE: bundle_id is being stored as bytes, not hex
+                f" bundle_id {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"  # NOTE: bundle_id is being stored as bytes, not hex
                 " confirmed_at_height bigint,"
                 " created_at_time bigint,"
-                " to_puzzle_hash text,"
+                f" to_puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
                 f" amount {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
                 f" fee_amount {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
                 " confirmed int,"

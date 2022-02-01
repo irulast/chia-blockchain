@@ -25,7 +25,7 @@ class TestWalletInterestedStore:
         if db_filename.exists():
             db_filename.unlink()
 
-        db_connection = create_database(str(db_filename))
+        db_connection = await create_database(str(db_filename))
         await db_connection.connect()
         db_wrapper = DBWrapper(db_connection)
         store = await WalletInterestedStore.create(db_wrapper)

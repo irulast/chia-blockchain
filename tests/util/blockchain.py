@@ -24,7 +24,7 @@ async def create_blockchain(constants: ConsensusConstants, db_version: int):
     if db_path.exists():
         db_path.unlink()
     blockchain_db_counter += 1
-    connection = create_database(str(db_path))
+    connection = await create_database(str(db_path))
     await connection.connect()
     wrapper = DBWrapper(connection, False, db_version)
     coin_store = await CoinStore.create(wrapper)

@@ -156,7 +156,7 @@ class FullNode:
         # These many respond_transaction tasks can be active at any point in time
         self.respond_transaction_semaphore = asyncio.Semaphore(200)
         # create the store (db) and full node instance
-        self.connection = create_database(str(self.db_path))
+        self.connection = await create_database(str(self.db_path))
         await self.connection.connect()
         if self.connection.url.dialect == "sqlite":
             await self.connection.execute("pragma journal_mode=wal")

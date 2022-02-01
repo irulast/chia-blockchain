@@ -29,9 +29,9 @@ class WalletUserStore:
             (
                 "CREATE TABLE IF NOT EXISTS users_wallets("
                 f"id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_connection.url.dialect)},"
-                " name text,"
+                f" name {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
                 " wallet_type int,"
-                " data text)"
+                f" data {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)})"
             )
         )
 

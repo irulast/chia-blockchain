@@ -33,8 +33,8 @@ class CrawlStore:
         await self.crawl_db.execute(
             (
                 "CREATE TABLE IF NOT EXISTS peer_records("
-                " peer_id text PRIMARY KEY,"
-                " ip_address text,"
+                f" peer_id {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)} PRIMARY KEY,"
+                f" ip_address {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)},"
                 " port bigint,"
                 " connected int,"
                 " last_try_timestamp bigint,"
@@ -50,7 +50,7 @@ class CrawlStore:
         await self.crawl_db.execute(
             (
                 "CREATE TABLE IF NOT EXISTS peer_reliability("
-                " peer_id text PRIMARY KEY,"
+                f" peer_id {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)} PRIMARY KEY,"
                 " ignore_till int, ban_till int,"
                 " stat_2h_w real, stat_2h_c real, stat_2h_r real,"
                 " stat_8h_w real, stat_8h_c real, stat_8h_r real,"
@@ -66,7 +66,7 @@ class CrawlStore:
         except:
             pass  # ignore what is likely Duplicate column error
 
-        await self.crawl_db.execute(("CREATE TABLE IF NOT EXISTS good_peers(ip text)"))
+        await self.crawl_db.execute(f"CREATE TABLE IF NOT EXISTS good_peers(ip {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)})")
 
         await self.crawl_db.execute("CREATE INDEX IF NOT EXISTS ip_address on peer_records(ip_address)")
 

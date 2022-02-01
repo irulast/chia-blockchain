@@ -53,7 +53,7 @@ async def setup_db(name: str, db_version: int) -> DBWrapper:
         os.unlink(db_filename)
     except FileNotFoundError:
         pass
-    connection = create_database(str(db_filename))
+    connection = await create_database(str(db_filename))
     await connection.connect()
 
     # def sql_trace_callback(req: str):

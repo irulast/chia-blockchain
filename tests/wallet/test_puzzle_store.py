@@ -27,7 +27,7 @@ class TestPuzzleStore:
         if db_filename.exists():
             db_filename.unlink()
 
-        con = create_database(str(db_filename))
+        con = await create_database(str(db_filename))
         await con.connect()
         wrapper = DBWrapper(con)
         db = await WalletPuzzleStore.create(wrapper)
