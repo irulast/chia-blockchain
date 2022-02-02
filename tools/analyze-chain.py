@@ -13,7 +13,7 @@ from clvm.operators import OP_REWRITE
 from chia.types.full_block import FullBlock
 from chia.types.blockchain_format.program import Program
 from chia.consensus.default_constants import DEFAULT_CONSTANTS
-from chia.util.db_factory import create_database
+from chia.util.db_factory import get_database_connection
 from chia.wallet.puzzles.rom_bootstrap_generator import get_generator
 from chia.types.condition_opcodes import ConditionOpcode
 
@@ -72,8 +72,7 @@ cond_map = {
 
 
 async def analyze_chain():
-    c = await create_database(sys.argv[1])
-    await c.connect()
+    c = await get_database_connection(sys.argv[1])
     rows = await c.fetch_all("SELECT header_hash, height, block FROM full_blocks ORDER BY height")
 
     height_to_hash: List[bytes] = []

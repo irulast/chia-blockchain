@@ -20,7 +20,7 @@ from chia.types.blockchain_format.sub_epoch_summary import SubEpochSummary
 from chia.util.block_cache import BlockCache
 from tests.block_tools import test_constants
 from chia.util.config import load_config
-from chia.util.db_factory import create_database
+from chia.util.db_factory import get_database_connection
 from chia.util.default_root import DEFAULT_ROOT_PATH
 from chia.util.generator_tools import get_block_header
 from tests.setup_nodes import bt
@@ -505,8 +505,7 @@ class TestWeightProof:
     @pytest.mark.asyncio
     async def test_weight_proof_from_database(self):
         # not sure what the path to db should be
-        connection = await create_database(str("path to db"))
-        await connection.connect()
+        connection = await get_database_connection(str("path to db"))
         block_store: BlockStore = await BlockStore.create(connection)
         blocks = await block_store.get_block_records_in_range(0, 0xFFFFFFFF)
         peak = len(blocks) - 1

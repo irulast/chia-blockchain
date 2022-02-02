@@ -4,7 +4,7 @@ from secrets import token_bytes
 import pytest
 
 from chia.types.blockchain_format.coin import Coin
-from chia.util.db_factory import create_database
+from chia.util.db_factory import get_database_connection
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint64
 
@@ -25,8 +25,7 @@ class TestWalletInterestedStore:
         if db_filename.exists():
             db_filename.unlink()
 
-        db_connection = await create_database(str(db_filename))
-        await db_connection.connect()
+        db_connection = await get_database_connection(str(db_filename))
         db_wrapper = DBWrapper(db_connection)
         store = await WalletInterestedStore.create(db_wrapper)
         try:

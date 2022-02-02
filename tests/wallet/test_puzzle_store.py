@@ -5,7 +5,7 @@ from secrets import token_bytes
 import pytest
 from blspy import AugSchemeMPL
 
-from chia.util.db_factory import create_database
+from chia.util.db_factory import get_database_connection
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint32
 from chia.wallet.derivation_record import DerivationRecord
@@ -27,8 +27,7 @@ class TestPuzzleStore:
         if db_filename.exists():
             db_filename.unlink()
 
-        con = await create_database(str(db_filename))
-        await con.connect()
+        con = await get_database_connection(str(db_filename))
         wrapper = DBWrapper(con)
         db = await WalletPuzzleStore.create(wrapper)
         try:

@@ -8,7 +8,7 @@ from typing import Tuple
 from pathlib import Path
 from datetime import datetime
 #from databases import Database
-from chia.util.db_factory import create_database
+from chia.util.db_factory import get_database_connection
 import os
 import sys
 import random
@@ -53,8 +53,7 @@ async def setup_db(name: str, db_version: int) -> DBWrapper:
         os.unlink(db_filename)
     except FileNotFoundError:
         pass
-    connection = await create_database(str(db_filename))
-    await connection.connect()
+    connection = await get_database_connection(str(db_filename))
 
     # def sql_trace_callback(req: str):
     #     sql_log_path = "sql.log"

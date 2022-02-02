@@ -63,7 +63,7 @@ from chia.util.bech32m import encode_puzzle_hash
 from chia.util.check_fork_next_block import check_fork_next_block
 from chia.util.condition_tools import pkm_pairs
 from chia.util.config import PEER_DB_PATH_KEY_DEPRECATED
-from chia.util.db_factory import create_database
+from chia.util.db_factory import get_database_connection
 from chia.util.db_wrapper import DBWrapper
 from chia.util.errors import ConsensusError, Err, ValidationError
 from chia.util.ints import uint8, uint32, uint64, uint128
@@ -156,8 +156,7 @@ class FullNode:
         # These many respond_transaction tasks can be active at any point in time
         self.respond_transaction_semaphore = asyncio.Semaphore(200)
         # create the store (db) and full node instance
-        self.connection = await create_database(str(self.db_path))
-        await self.connection.connect()
+        self.connection = await get_database_connection(str(self.db_path))
         if self.connection.url.dialect == "sqlite":
             await self.connection.execute("pragma journal_mode=wal")
 

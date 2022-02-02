@@ -10,7 +10,7 @@ from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.program import Program, SerializedProgram
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_spend import CoinSpend
-from chia.util.db_factory import create_database
+from chia.util.db_factory import get_database_connection
 from chia.util.db_wrapper import DBWrapper
 from chia.util.ints import uint64
 
@@ -50,7 +50,7 @@ class TestWalletPoolStore:
         if db_filename.exists():
             db_filename.unlink()
 
-        async with create_database(str(db_filename)) as db_connection:
+        async with await get_database_connection(str(db_filename)) as db_connection:
             db_wrapper = DBWrapper(db_connection)
             store = await WalletPoolStore.create(db_wrapper)
             async with db_connection.connection() as db_connection:

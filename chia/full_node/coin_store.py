@@ -218,7 +218,7 @@ class CoinStore:
             f"AND confirmed_index>=:start_height AND confirmed_index<:end_height "
             f"{'' if include_spent_coins else 'AND spent_index=0'}",
             {"puzzle_hash": self.maybe_to_hex(puzzle_hash), "start_height": start_height, "end_height": end_height},
-        ) 
+        )
 
         for row in rows:
             coin = self.row_to_coin(row)

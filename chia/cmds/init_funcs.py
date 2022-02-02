@@ -23,7 +23,7 @@ from chia.util.config import (
     save_config,
     unflatten_properties,
 )
-from chia.util.db_factory import create_database
+from chia.util.db_factory import get_database_connection
 from chia.util.ints import uint32
 from chia.util.keychain import Keychain
 from chia.util.path import mkdir, path_from_root
@@ -416,8 +416,7 @@ def chia_init(
     return 0
 
 async def create_database_versions_table(db_path: Path):
-    database = await create_database(str(db_path))
-    await database.connect()
+    database = await get_database_connection(str(db_path))
     async with database.connection() as connection:
         connection.execute("CREATE TABLE database_version(version int)")
         connection.execute("INSERT INTO database_version VALUES (2)")

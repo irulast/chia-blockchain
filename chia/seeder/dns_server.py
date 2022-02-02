@@ -10,7 +10,7 @@ from databases import Database
 from dnslib import A, AAAA, SOA, NS, MX, CNAME, RR, DNSRecord, QTYPE, DNSHeader
 
 from chia.util.chia_logging import initialize_logging
-from chia.util.db_factory import create_database
+from chia.util.db_factory import get_database_connection
 from chia.util.path import mkdir, path_from_root
 from chia.util.config import load_config
 from chia.util.default_root import DEFAULT_ROOT_PATH
@@ -102,8 +102,7 @@ class DNSServer:
             await asyncio.sleep(sleep_interval * 60)
             try:
                 # TODO: double check this. It shouldn't take this long to connect.
-                crawl_db = await create_database(str(self.db_path))
-                await crawl_db.connect()
+                crawl_db = await get_database_connection(str(self.db_path))
                 # TODO: ajw ADD TIMEOUT crawl_db = await aiosqlite.connect(self.db_path, timeout=600)
                 rows = await crawl_db.fetch_all(
                     "SELECT * from good_peers",

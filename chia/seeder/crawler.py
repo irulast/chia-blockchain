@@ -15,7 +15,7 @@ from chia.seeder.crawl_store import CrawlStore
 from chia.seeder.peer_record import PeerRecord, PeerReliability
 from chia.server.server import ChiaServer
 from chia.types.peer_info import PeerInfo
-from chia.util.db_factory import create_database
+from chia.util.db_factory import get_database_connection
 from chia.util.path import mkdir, path_from_root
 from chia.util.ints import uint32, uint64
 
@@ -115,8 +115,7 @@ class Crawler:
 
     async def crawl(self):
         try:
-            self.connection = await create_database(str(self.db_path))
-            await self.connection.connect()
+            self.connection = await get_database_connection(str(self.db_path))
             self.crawl_store = await CrawlStore.create(self.connection)
             self.log.info("Started")
             t_start = time.time()
