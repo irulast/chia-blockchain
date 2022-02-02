@@ -161,15 +161,15 @@ class BlockHeightMap:
             if self.db.db_version == 2:
                 query = (
                     "SELECT header_hash,prev_hash,height,sub_epoch_summary from full_blocks "
-                    f"{dialect_utils.clause('INDEXED BY', self.db.db.url.dialect)} height WHERE height>=:min_height AND height <:max_height"
+                    f"{dialect_utils.indexed_by('height', self.db.db.url.dialect)} WHERE height>=:min_height AND height <:max_height"
                 )
             else:
                 query = (
                     "SELECT header_hash,prev_hash,height,sub_epoch_summary from block_records "
-                    f"{dialect_utils.clause('INDEXED BY', self.db.db.url.dialect)} height WHERE height>=:min_height AND height <:max_height"
+                    f"{dialect_utils.indexed_by('height', self.db.db.url.dialect)} WHERE height>=:min_height AND height <:max_height"
                 )
 
-            rows = await self.db.db.fetch_all(query, {"min_height": window_end, "max_height": height})
+            rows = await self.db.db.fetch_all(query, {"min_height": window_end, "max_height": int(height)})
 
             # maps block-hash -> (height, prev-hash, sub-epoch-summary)
             ordered: Dict[bytes32, Tuple[uint32, bytes32, Optional[bytes]]] = {}

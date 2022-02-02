@@ -1,6 +1,9 @@
 from enum import Enum
 from typing import List
 
+from databases import Database
+import pymysql
+
 class SqlDialect(Enum):
     SQLITE = 'sqlite'
     POSTGRES = 'postgresql'
@@ -10,7 +13,7 @@ data_type_map = {
     'blob' : {
         SqlDialect.SQLITE: 'blob',
         SqlDialect.POSTGRES: 'bytea',
-        SqlDialect.MYSQL: 'blob',
+        SqlDialect.MYSQL: 'longblob',
     },
     'tinyint': {
         SqlDialect.SQLITE: 'tinyint',
@@ -21,7 +24,12 @@ data_type_map = {
         SqlDialect.SQLITE: 'text',
         SqlDialect.POSTGRES: 'text',
         SqlDialect.MYSQL: 'varchar(255)'
-    }
+    },
+    'blob-as-index': {
+        SqlDialect.SQLITE: 'blob',
+        SqlDialect.POSTGRES: 'bytea',
+        SqlDialect.MYSQL: 'varbinary(255)',
+    },
 }
 def data_type(data_type: str, dialect: str):
     return data_type_map[data_type][SqlDialect(dialect)]
@@ -37,14 +45,29 @@ clause_map = {
         SqlDialect.POSTGRES: '', # postgres does not allow index hinting
         SqlDialect.MYSQL: 'USE INDEX'
     },
-    'CREATE INDEX IF NOT EXISTS': {
-        SqlDialect.SQLITE: 'CREATE INDEX IF NOT EXISTS',
-        SqlDialect.POSTGRES: 'CREATE INDEX IF NOT EXISTS',
-        SqlDialect.MYSQL: 'CREATE INDEX'
-    },
 }
 def clause(clause: str, dialect: str):
     return clause_map[clause][SqlDialect(dialect)]
+
+def indexed_by(index: str, dialect:str):
+    if SqlDialect(dialect) == SqlDialect.SQLITE:
+        return f"INDEXED BY {index}"
+
+    elif SqlDialect(dialect) == SqlDialect.POSTGRES:
+        return ""
+
+    elif SqlDialect(dialect) == SqlDialect.MYSQL:
+        return f"USE INDEX ({index})"
+
+    else:
+        raise Exception("Invalid or unsupported sql dialect")
+
+def reserved_word(word: str, dialect: str):
+    if SqlDialect(dialect) == SqlDialect.SQLITE or SqlDialect(dialect) == SqlDialect.POSTGRES:
+        return f"\"{word}\""
+    elif SqlDialect(dialect) == SqlDialect.MYSQL:
+        return f"`{word}`"
+
 
 
 def upsert_query(table_name: str, primary_key_columns: List[str], columns: List[str], dialect: str):
@@ -78,3 +101,23 @@ def _generate_set_statements(primary_key_columns: List[str], columns: List[str])
         if col not in primary_key_columns:
             set_statements.append(f"{col} = :{col}")
     return set_statements
+
+async def create_index_if_not_exists(database: Database, query: str):
+    if SqlDialect(database.url.dialect) == SqlDialect.MYSQL:
+        try:
+            await database.execute(query.replace(' IF NOT EXISTS', '').split('WHERE')[0].split('where')[0])
+        except pymysql.err.InternalError as e:
+            if 'Duplicate key name' not in str(e):
+                raise e 
+    else:
+        await database.execute(query)
+
+async def drop_index_if_exists(database: Database, query: str, table: str):
+    if SqlDialect(database.url.dialect) == SqlDialect.MYSQL:
+        try:
+            await database.execute(f"{query.replace(' IF EXISTS', '')} on {table}")
+        except pymysql.err.InternalError as e:
+            if 'check that column/key exists' not in str(e):
+                raise e 
+    else:
+        await database.execute(query)

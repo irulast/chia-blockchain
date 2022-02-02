@@ -71,18 +71,18 @@ class CoinStore:
             )
 
         # Useful for reorg lookups
-        await self.coin_record_db.execute(
+        await dialect_utils.create_index_if_not_exists(self.coin_record_db, 
             "CREATE INDEX IF NOT EXISTS coin_confirmed_index on coin_record(confirmed_index)"
         )
 
-        await self.coin_record_db.execute("CREATE INDEX IF NOT EXISTS coin_spent_index on coin_record(spent_index)")
+        await dialect_utils.create_index_if_not_exists(self.coin_record_db, "CREATE INDEX IF NOT EXISTS coin_spent_index on coin_record(spent_index)")
 
         if self.db_wrapper.allow_upgrades:
-            await self.coin_record_db.execute("DROP INDEX IF EXISTS coin_spent")
+            await dialect_utils.drop_index_if_exists(self.coin_record_db, "DROP INDEX IF EXISTS coin_spent", 'coin_record')
 
-        await self.coin_record_db.execute("CREATE INDEX IF NOT EXISTS coin_puzzle_hash on coin_record(puzzle_hash)")
+        await dialect_utils.create_index_if_not_exists(self.coin_record_db, "CREATE INDEX IF NOT EXISTS coin_puzzle_hash on coin_record(puzzle_hash)")
 
-        await self.coin_record_db.execute("CREATE INDEX IF NOT EXISTS coin_parent_index on coin_record(coin_parent)")
+        await dialect_utils.create_index_if_not_exists(self.coin_record_db, "CREATE INDEX IF NOT EXISTS coin_parent_index on coin_record(coin_parent)")
 
         self.coin_record_cache = LRUCache(cache_size)
         return self
@@ -176,7 +176,7 @@ class CoinStore:
         rows = await self.coin_record_db.fetch_all(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
             "coin_parent, amount, timestamp FROM coin_record WHERE confirmed_index=:height",
-            {"height": height},
+            {"height": int(height)},
         )
         coins = []
         for row in rows:
@@ -191,7 +191,7 @@ class CoinStore:
         rows = await self.coin_record_db.fetch_all(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
             "coin_parent, amount, timestamp FROM coin_record WHERE spent_index=:height",
-            {"height": height},
+            {"height": int(height)},
         )
         coins = []
         for row in rows:
@@ -214,10 +214,10 @@ class CoinStore:
 
         rows = await self.coin_record_db.fetch_all(
             f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            f"coin_parent, amount, timestamp FROM coin_record {dialect_utils.clause('INDEXED BY', self.coin_record_db.url.dialect)} coin_puzzle_hash WHERE puzzle_hash=:puzzle_hash "
+            f"coin_parent, amount, timestamp FROM coin_record {dialect_utils.indexed_by('coin_puzzle_hash', self.coin_record_db.url.dialect)} WHERE puzzle_hash=:puzzle_hash "
             f"AND confirmed_index>=:start_height AND confirmed_index<:end_height "
             f"{'' if include_spent_coins else 'AND spent_index=0'}",
-            {"puzzle_hash": self.maybe_to_hex(puzzle_hash), "start_height": start_height, "end_height": end_height},
+            {"puzzle_hash": self.maybe_to_hex(puzzle_hash), "start_height": int(start_height), "end_height": int(end_height)},
         )
 
         for row in rows:
@@ -244,15 +244,15 @@ class CoinStore:
         
         query = text(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            f"coin_parent, amount, timestamp FROM coin_record {dialect_utils.clause('INDEXED BY', self.coin_record_db.url.dialect)} coin_puzzle_hash "
+            f"coin_parent, amount, timestamp FROM coin_record {dialect_utils.indexed_by('coin_puzzle_hash', self.coin_record_db.url.dialect)} "
             "WHERE confirmed_index>=:start_height AND confirmed_index<:end_height "
             'AND puzzle_hash in :puzzle_hashes_db '
             f"{'' if include_spent_coins else 'AND spent_index=0'}"
         )
         query = query.bindparams(
             bindparam("puzzle_hashes_db", puzzle_hashes_db, expanding=True),
-            bindparam("start_height", start_height),
-            bindparam("end_height", end_height)
+            bindparam("start_height", int(start_height)),
+            bindparam("end_height", int(end_height))
         )
         rows = await self.coin_record_db.fetch_all(query) 
 
@@ -287,8 +287,8 @@ class CoinStore:
         )
         query = query.bindparams(
             bindparam("coin_names", names_db, expanding=True),
-            bindparam("start_height", start_height),
-            bindparam("end_height", end_height)
+            bindparam("start_height", int(start_height)),
+            bindparam("end_height", int(end_height))
         )
         rows = await self.coin_record_db.fetch_all(query) 
 
@@ -329,15 +329,15 @@ class CoinStore:
 
         query = text(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            f"coin_parent, amount, timestamp FROM coin_record {dialect_utils.clause('INDEXED BY', self.coin_record_db.url.dialect)} coin_puzzle_hash "
+            f"coin_parent, amount, timestamp FROM coin_record {dialect_utils.indexed_by('coin_puzzle_hash', self.coin_record_db.url.dialect)} "
             "WHERE confirmed_index>=:start_height AND confirmed_index<:end_height "
             'AND puzzle_hash in :puzzle_hashes '
             f"{'' if include_spent_coins else 'AND spent_index=0'}",
         )
         query = query.bindparams(
             bindparam("puzzle_hashes", puzzle_hashes_db, expanding=True),
-            bindparam("start_height", start_height),
-            bindparam("end_height", end_height)
+            bindparam("start_height", int(start_height)),
+            bindparam("end_height", int(end_height))
         )
         rows = await self.coin_record_db.fetch_all(query) 
 
@@ -372,8 +372,8 @@ class CoinStore:
         )
         query = query.bindparams(
             bindparam("coin_parent_ids", parent_ids_db, expanding=True),
-            bindparam("start_height", start_height),
-            bindparam("end_height", end_height)
+            bindparam("start_height", int(start_height)),
+            bindparam("end_height", int(end_height))
         )
         rows = await self.coin_record_db.fetch_all(query) 
 
@@ -407,8 +407,8 @@ class CoinStore:
         )
         query = query.bindparams(
             bindparam("coin_names", coin_ids_db, expanding=True),
-            bindparam("start_height", start_height),
-            bindparam("end_height", end_height)
+            bindparam("start_height", int(start_height)),
+            bindparam("end_height", int(end_height))
         )
         rows = await self.coin_record_db.fetch_all(query) 
 
@@ -484,13 +484,13 @@ class CoinStore:
                 values2.append(
                     {
                         "coin_name": record.coin.name(),
-                        "confirmed_block_index": record.confirmed_block_index,
-                        "spent_block_index": record.spent_block_index,
+                        "confirmed_block_index": int(record.confirmed_block_index),
+                        "spent_block_index": int(record.spent_block_index),
                         "coinbase": int(record.coinbase),
                         "puzzle_hash": record.coin.puzzle_hash,
                         "parent_coin_info": record.coin.parent_coin_info,
                         "amount": bytes(record.coin.amount),
-                        "timestamp": record.timestamp,
+                        "timestamp": int(record.timestamp),
                     }
                 )
             await self.coin_record_db.execute_many(
@@ -504,14 +504,14 @@ class CoinStore:
                 values.append(
                     {
                         "coin_name": record.coin.name().hex(),
-                        "confirmed_block_index": record.confirmed_block_index,
-                        "spent_block_index": record.spent_block_index,
+                        "confirmed_block_index": int(record.confirmed_block_index),
+                        "spent_block_index": int(record.spent_block_index),
                         "spent": int(record.spent),
                         "coinbase": int(record.coinbase),
                         "puzzle_hash": record.coin.puzzle_hash.hex(),
                         "parent_coin_info": record.coin.parent_coin_info.hex(),
                         "amount": bytes(record.coin.amount),
-                        "timestamp": record.timestamp,
+                        "timestamp": int(record.timestamp),
                     }
                 )
             await self.coin_record_db.execute_many(
@@ -531,7 +531,7 @@ class CoinStore:
                 self.coin_record_cache.put(
                     r.name, CoinRecord(r.coin, r.confirmed_block_index, index, r.coinbase, r.timestamp)
                 )
-            updates.append({"spent_index": index, "coin_name": self.maybe_to_hex(coin_name)})
+            updates.append({"spent_index": int(index), "coin_name": self.maybe_to_hex(coin_name)})
 
         if self.db_wrapper.db_version == 2:
             await self.coin_record_db.execute_many(

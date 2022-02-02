@@ -23,10 +23,10 @@ class KeyValStore:
         self.db_wrapper = db_wrapper
         self.db_connection = db_wrapper.db
         await self.db_connection.execute(
-            f"CREATE TABLE IF NOT EXISTS key_val_store(key {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY, value text)"
+            f"CREATE TABLE IF NOT EXISTS key_val_store({dialect_utils.reserved_word('key', self.db_connection.url.dialect)} {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY, value text)"
         )
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS name on key_val_store(key)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, f"CREATE INDEX IF NOT EXISTS name on key_val_store({dialect_utils.reserved_word('key', self.db_connection.url.dialect)})")
 
         return self
 
@@ -39,7 +39,7 @@ class KeyValStore:
         Return bytes representation of stored object
         """
 
-        row = await self.db_connection.fetch_one("SELECT * from key_val_store WHERE key=:key", {"key": key})
+        row = await self.db_connection.fetch_one(f"SELECT * from key_val_store WHERE {dialect_utils.reserved_word('key', self.db_connection.url.dialect)}=:key", {"key": key})
 
         if row is None:
             return None

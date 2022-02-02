@@ -50,29 +50,33 @@ class WalletTransactionStore:
         )
 
         # Useful for reorg lookups
-        await self.db_connection.execute(
+        await dialect_utils.create_index_if_not_exists(
+            self.db_connection, 
             "CREATE INDEX IF NOT EXISTS tx_confirmed_index on transaction_record(confirmed_at_height)"
         )
 
-        await self.db_connection.execute(
+        await dialect_utils.create_index_if_not_exists(
+            self.db_connection, 
             "CREATE INDEX IF NOT EXISTS tx_created_index on transaction_record(created_at_time)"
         )
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS tx_confirmed on transaction_record(confirmed)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS tx_confirmed on transaction_record(confirmed)")
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS tx_sent on transaction_record(sent)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS tx_sent on transaction_record(sent)")
 
-        await self.db_connection.execute(
+        await dialect_utils.create_index_if_not_exists(
+            self.db_connection, 
             "CREATE INDEX IF NOT EXISTS tx_created_time on transaction_record(created_at_time)"
         )
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS tx_type on transaction_record(type)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS tx_type on transaction_record(type)")
 
-        await self.db_connection.execute(
+        await dialect_utils.create_index_if_not_exists(
+            self.db_connection, 
             "CREATE INDEX IF NOT EXISTS tx_to_puzzle_hash on transaction_record(to_puzzle_hash)"
         )
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS wallet_id on transaction_record(wallet_id)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_id on transaction_record(wallet_id)")
 
         self.tx_record_cache = {}
         self.tx_submitted = {}
@@ -115,16 +119,16 @@ class WalletTransactionStore:
             row_to_insert = {
                 "transaction_record": bytes(record),
                 "bundle_id": record.name,
-                "confirmed_at_height": record.confirmed_at_height,
-                "created_at_time": record.created_at_time,
+                "confirmed_at_height": int(record.confirmed_at_height),
+                "created_at_time": int(record.created_at_time),
                 "to_puzzle_hash": record.to_puzzle_hash.hex(),
                 "amount": bytes(record.amount),
                 "fee_amount": bytes(record.fee_amount),
                 "confirmed": int(record.confirmed),
-                "sent": record.sent,
-                "wallet_id": record.wallet_id,
-                "trade_id": record.trade_id,
-                "type": record.type,
+                "sent": int(record.sent),
+                "wallet_id": int(record.wallet_id),
+                "trade_id": int(record.trade_id),
+                "type": int(record.type),
             }
             await self.db_connection.execute(
                 dialect_utils.upsert_query('transaction_record', ['bundle_id'], row_to_insert.keys(), self.db_connection.url.dialect),
@@ -249,7 +253,7 @@ class WalletTransactionStore:
             return self.tx_record_cache[tx_id]
 
         # NOTE: bundle_id is being stored as bytes, not hex
-        row = await self.db_connection.fetch_one("SELECT * from transaction_record WHERE bundle_id=:bundle_id", {"bundle_id": tx_id})
+        row = await self.db_connection.fetch_one("SELECT * from transaction_record WHERE bundle_id=:bundle_id", {"bundle_id": int(tx_id)})
         if row is not None:
             record = TransactionRecord.from_bytes(row[0])
             return record
@@ -289,7 +293,7 @@ class WalletTransactionStore:
         fee_int = TransactionType.FEE_REWARD.value
         pool_int = TransactionType.COINBASE_REWARD.value
         rows = await self.db_connection.fetch_all(
-            "SELECT * from transaction_record WHERE confirmed=:confirmed and (type=:fee_int or type=:pool_int)", {"confirmed": 1, "fee_int":  fee_int, "pool_int":  pool_int}
+            "SELECT * from transaction_record WHERE confirmed=:confirmed and (type=:fee_int or type=:pool_int)", {"confirmed": 1, "fee_int":  int(fee_int), "pool_int":  int(pool_int)}
         )
         records = []
 
@@ -341,8 +345,8 @@ class WalletTransactionStore:
             query_str = SortKey[sort_key].ascending()
 
         rows = await self.db_connection.fetch_all(
-            f"SELECT * from transaction_record where wallet_id=:wallet_id" f" {query_str}, rowid" f" LIMIT {start}, {limit}",
-            {"wallet_id": wallet_id},
+            f"SELECT * from transaction_record where wallet_id=:wallet_id" f" {query_str}, rowid" f" LIMIT {int(start)}, {int(limit)}",
+            {"wallet_id": int(wallet_id)},
         )
         records = []
 
@@ -354,7 +358,7 @@ class WalletTransactionStore:
 
     async def get_transaction_count_for_wallet(self, wallet_id) -> int:
         count_result = await self.db_connection.fetch_one(
-            "SELECT COUNT(*) FROM transaction_record where wallet_id=:wallet_id", {"wallet_id": wallet_id}
+            "SELECT COUNT(*) FROM transaction_record where wallet_id=:wallet_id", {"wallet_id": int(wallet_id)}
         )
         if count_result is not None:
             count = count_result[0]
@@ -368,14 +372,14 @@ class WalletTransactionStore:
         """
         if type is None:
             rows = await self.db_connection.fetch_all(
-                "SELECT * from transaction_record where wallet_id=:wallet_id", {"wallet_id": wallet_id}
+                "SELECT * from transaction_record where wallet_id=:wallet_id", {"wallet_id": int(wallet_id)}
             )
         else:
             rows = await self.db_connection.fetch_all(
                 "SELECT * from transaction_record where wallet_id=:wallet_id and type=:type",
                 {
-                    "wallet_id": wallet_id,
-                    "type": type,
+                    "wallet_id": int(wallet_id),
+                    "type": int(type),
                 }
             )
 
@@ -406,7 +410,7 @@ class WalletTransactionStore:
         # Can be -1 (get all tx)
 
         rows = await self.db_connection.fetch_all(
-            "SELECT * from transaction_record WHERE confirmed_at_height>:min_confirmed_at_height", {"min_confirmed_at_height": height}
+            "SELECT * from transaction_record WHERE confirmed_at_height>:min_confirmed_at_height", {"min_confirmed_at_height": int(height)}
         )
         records = []
 
@@ -429,5 +433,5 @@ class WalletTransactionStore:
 
     async def delete_unconfirmed_transactions(self, wallet_id: int):
         await self.db_connection.execute(
-            "DELETE FROM transaction_record WHERE confirmed=0 AND wallet_id=:wallet_id", {"wallet_id": wallet_id}
+            "DELETE FROM transaction_record WHERE confirmed=0 AND wallet_id=:wallet_id", {"wallet_id": int(wallet_id)}
         )

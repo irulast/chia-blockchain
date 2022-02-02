@@ -40,11 +40,12 @@ class TradeStore:
             )
         )
 
-        await self.db_connection.execute(
+        await dialect_utils.create_index_if_not_exists(
+            self.db_connection, 
             "CREATE INDEX IF NOT EXISTS trade_confirmed_index on trade_records(confirmed_at_index)"
         )
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS trade_status on trade_records(status)")
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS trade_id on trade_records(trade_id)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS trade_status on trade_records(status)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS trade_id on trade_records(trade_id)")
 
         return self
 
@@ -61,10 +62,10 @@ class TradeStore:
             row_to_insert = {
                 "trade_record": bytes(record),
                 "trade_id": record.trade_id.hex(),
-                "status": record.status,
-                "confirmed_at_index": record.confirmed_at_index,
-                "created_at_time": record.created_at_time,
-                "sent": record.sent,
+                "status": int(record.status),
+                "confirmed_at_index": int(record.confirmed_at_index),
+                "created_at_time": int(record.created_at_time),
+                "sent": int(record.sent),
             }
             await self.db_connection.execute(
                 dialect_utils.upsert_query('trade_records', ['trade_id'], row_to_insert.keys(), self.db_connection.url.dialect),
@@ -251,7 +252,7 @@ class TradeStore:
 
     async def rollback_to_block(self, block_index):
 
-        # Delete from storage
+        # Delete from storage10f
         await self.db_connection.execute(
-            "DELETE FROM trade_records WHERE confirmed_at_index>:min_confirmed_at_index", {"min_confirmed_at_index": block_index}
+            "DELETE FROM trade_records WHERE confirmed_at_index>:min_confirmed_at_index", {"min_confirmed_at_index": int(block_index)}
         )

@@ -68,7 +68,7 @@ class WalletInterestedStore:
         if not in_transaction:
             await self.db_wrapper.lock.acquire()
         try:
-            row_to_insert = {"puzzle_hash": puzzle_hash.hex(), "wallet_id":  wallet_id}
+            row_to_insert = {"puzzle_hash": puzzle_hash.hex(), "wallet_id":  int(wallet_id)}
             await self.db_connection.execute(
                 dialect_utils.upsert_query('interested_puzzle_hashes', ['puzzle_hash'], row_to_insert.keys(), self.db_connection.url.dialect),
                 row_to_insert

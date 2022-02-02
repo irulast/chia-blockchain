@@ -35,11 +35,11 @@ class WalletUserStore:
             )
         )
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS name on users_wallets(name)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS name on users_wallets(name)")
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS type on users_wallets(wallet_type)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS type on users_wallets(wallet_type)")
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS data on users_wallets(data)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS data on users_wallets(data)")
 
         await self.init_wallet()
         return self
@@ -62,12 +62,12 @@ class WalletUserStore:
             if id is None:
                 await self.db_connection.execute(
                     "INSERT INTO users_wallets(name, wallet_type, data) VALUES(:name, :wallet_type, :data)",
-                    {"name":  name, "wallet_type":  wallet_type, "data":  data},
+                    {"name":  name, "wallet_type":  int(wallet_type), "data":  data},
                 )
             else:
                 await self.db_connection.execute(
                     "INSERT INTO users_wallets(id, name, wallet_type, data) VALUES(:id, :name, :wallet_type, :data)",
-                    {"id": id, "name":  name, "wallet_type":  wallet_type, "data":  data},
+                    {"id": int(id), "name":  name, "wallet_type":  int(wallet_type), "data":  data},
                 )
         finally:
             if not in_transaction:
@@ -79,7 +79,7 @@ class WalletUserStore:
         if not in_transaction:
             await self.db_wrapper.lock.acquire()
         try:
-            await self.db_connection.execute(f"DELETE FROM users_wallets where id={id}")
+            await self.db_connection.execute(f"DELETE FROM users_wallets where id={int(id)}")
         finally:
             if not in_transaction:
                 self.db_wrapper.lock.release()
@@ -91,9 +91,9 @@ class WalletUserStore:
             await self.db_connection.execute(
                 "INSERT or REPLACE INTO users_wallets VALUES(:id, :name, :wallet_type, :data)",
                 {
-                    "id": wallet_info.id,
+                    "id": int(wallet_info.id),
                     "name": wallet_info.name,
-                    "wallet_type": wallet_info.type,
+                    "wallet_type": int(wallet_info.type),
                     "data": wallet_info.data,
                 }
             )
@@ -127,7 +127,7 @@ class WalletUserStore:
         Return a wallet by id
         """
 
-        row = await self.db_connection.fetch_one("SELECT * from users_wallets WHERE id=:id", {"id": id})
+        row = await self.db_connection.fetch_one("SELECT * from users_wallets WHERE id=:id", {"id": int(id)})
 
         if row is None:
             return None

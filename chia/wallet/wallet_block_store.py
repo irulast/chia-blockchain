@@ -44,11 +44,11 @@ class WalletBlockStore:
             f" timestamp int, block {dialect_utils.data_type('blob', self.db.url.dialect)})"
         )
 
-        await self.db.execute("CREATE INDEX IF NOT EXISTS header_hash on header_blocks(header_hash)")
+        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS header_hash on header_blocks(header_hash)")
 
-        await self.db.execute("CREATE INDEX IF NOT EXISTS timestamp on header_blocks(timestamp)")
+        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS timestamp on header_blocks(timestamp)")
 
-        await self.db.execute("CREATE INDEX IF NOT EXISTS height on header_blocks(height)")
+        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS height on header_blocks(height)")
 
         # Block records
         await self.db.execute(
@@ -62,10 +62,10 @@ class WalletBlockStore:
         )
 
         # Height index so we can look up in order of height for sync purposes
-        await self.db.execute("CREATE INDEX IF NOT EXISTS height on block_records(height)")
+        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS height on block_records(height)")
 
-        await self.db.execute("CREATE INDEX IF NOT EXISTS hh on block_records(header_hash)")
-        await self.db.execute("CREATE INDEX IF NOT EXISTS peak on block_records(is_peak)")
+        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS hh on block_records(header_hash)")
+        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS peak on block_records(is_peak)")
         #await self.db.commit()
         self.block_cache = LRUCache(1000)
         return self
@@ -95,8 +95,8 @@ class WalletBlockStore:
             timestamp = uint64(0)
         row_to_insert = {
             "header_hash": header_block_record.header_hash.hex(),
-            "height": header_block_record.height,
-            "timestamp": timestamp,
+            "height": int(header_block_record.height),
+            "timestamp": int(timestamp),
             "block": bytes(header_block_record),
         }
         await self.db.execute(
@@ -107,7 +107,7 @@ class WalletBlockStore:
         row_to_insert = {
             "header_hash": header_block_record.header.header_hash.hex(),
             "prev_hash": header_block_record.header.prev_header_hash.hex(),
-            "height": header_block_record.header.height,
+            "height": int(header_block_record.header.height),
             "weight": header_block_record.header.weight.to_bytes(128 // 8, "big", signed=False).hex(),
             "total_iters": header_block_record.header.total_iters.to_bytes(128 // 8, "big", signed=False).hex(),
             "block": bytes(block_record),
@@ -134,7 +134,7 @@ class WalletBlockStore:
         if len(heights) == 0:
             return []
 
-        heights_db = tuple(heights)
+        heights_db = map(lambda height: int(height), heights)
         query = text('SELECT block from header_blocks WHERE height in :heights')
         query = query.bindparams(bindparam("heights", heights_db, expanding=True))
         rows = await self.db.fetch_all(query)
@@ -217,7 +217,7 @@ class WalletBlockStore:
         header_hash_bytes, peak_height = row
         peak: bytes32 = bytes32(bytes.fromhex(header_hash_bytes))
 
-        formatted_str = f"SELECT header_hash, block from block_records WHERE height >= {peak_height - blocks_n}"
+        formatted_str = f"SELECT header_hash, block from block_records WHERE height >= {int(peak_height - blocks_n)}"
         rows = await self.db.fetch_all(formatted_str)
         ret: Dict[bytes32, BlockRecord] = {}
         for row in rows:
@@ -232,7 +232,7 @@ class WalletBlockStore:
         stop: int,
     ) -> Dict[bytes32, HeaderBlock]:
 
-        formatted_str = f"SELECT header_hash, block from header_blocks WHERE height >= {start} and height <= {stop}"
+        formatted_str = f"SELECT header_hash, block from header_blocks WHERE height >= {int(start)} and height <= {int(stop)}"
 
         rows = await self.db.fetch_all(formatted_str)
         ret: Dict[bytes32, HeaderBlock] = {}
@@ -253,7 +253,7 @@ class WalletBlockStore:
         if present.
         """
 
-        formatted_str = f"SELECT header_hash, block from block_records WHERE height >= {start} and height <= {stop}"
+        formatted_str = f"SELECT header_hash, block from block_records WHERE height >= {int(start)} and height <= {int(stop)}"
 
         rows = await self.db.fetch_all(formatted_str)
         ret: Dict[bytes32, BlockRecord] = {}

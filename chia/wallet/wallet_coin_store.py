@@ -48,17 +48,18 @@ class WalletCoinStore:
         )
 
         # Useful for reorg lookups
-        await self.db_connection.execute(
+        await dialect_utils.create_index_if_not_exists(
+            self.db_connection, 
             "CREATE INDEX IF NOT EXISTS coin_confirmed_height on coin_record(confirmed_height)"
         )
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS coin_spent_height on coin_record(spent_height)")
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS coin_spent on coin_record(spent)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS coin_spent_height on coin_record(spent_height)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS coin_spent on coin_record(spent)")
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS coin_puzzle_hash on coin_record(puzzle_hash)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS coin_puzzle_hash on coin_record(puzzle_hash)")
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS wallet_type on coin_record(wallet_type)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_type on coin_record(wallet_type)")
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS wallet_id on coin_record(wallet_id)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_id on coin_record(wallet_id)")
 
         #await self.db_connection.commit()
         self.coin_record_cache = {}
@@ -98,15 +99,15 @@ class WalletCoinStore:
                 self.unspent_coin_wallet_cache[record.wallet_id][name] = record
         row_to_insert = {
             "coin_name": name.hex(),
-            "confirmed_height": record.confirmed_block_height,
-            "spent_height": record.spent_block_height,
+            "confirmed_height": int(record.confirmed_block_height),
+            "spent_height": int(record.spent_block_height),
             "spent": int(record.spent),
             "coinbase": int(record.coinbase),
             "puzzle_hash": str(record.coin.puzzle_hash.hex()),
             "coin_parent": str(record.coin.parent_coin_info.hex()),
             "amount": bytes(record.coin.amount),
-            "wallet_type": record.wallet_type,
-            "wallet_id": record.wallet_id,
+            "wallet_type": int(record.wallet_type),
+            "wallet_id": int(record.wallet_id),
         }
         await self.db_connection.execute(
             dialect_utils.upsert_query('coin_record', ['coin_name'], row_to_insert.keys(), self.db_connection.url.dialect),
@@ -231,8 +232,8 @@ class WalletCoinStore:
                 if coin_record.coin.name() in coin_cache:
                     coin_cache.pop(coin_record.coin.name())
 
-        await self.db_connection.execute("DELETE FROM coin_record WHERE confirmed_height>:min_confirmed_height", {"min_confirmed_height": height})
+        await self.db_connection.execute("DELETE FROM coin_record WHERE confirmed_height>:min_confirmed_height", {"min_confirmed_height": int(height)})
         await self.db_connection.execute(
             "UPDATE coin_record SET spent_height = 0, spent = 0 WHERE spent_height>:min_spent_height",
-            {"min_spent_height": height},
+            {"min_spent_height": int(height)},
         )

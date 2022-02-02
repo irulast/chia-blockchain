@@ -62,8 +62,8 @@ class WalletPoolStore:
         all_state_transitions.append((height, spend))
         row_to_insert = {
             "transition_index": len(all_state_transitions) - 1,
-            "wallet_id": wallet_id,
-            "height": height,
+            "wallet_id": int(wallet_id),
+            "height": int(height),
             "coin_spend": bytes(spend),
         }
         await self.db_connection.execute(
@@ -106,5 +106,5 @@ class WalletPoolStore:
             if remove_index_start is not None:
                 del items[remove_index_start:]
         await self.db_connection.execute(
-            "DELETE FROM pool_state_transitions WHERE height>:height AND wallet_id=:wallet_id", {"height": height, "wallet_id":  wallet_id_arg}
+            "DELETE FROM pool_state_transitions WHERE height>:height AND wallet_id=:wallet_id", {"height": int(height), "wallet_id":  int(wallet_id_arg)}
         )

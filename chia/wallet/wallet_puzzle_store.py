@@ -48,19 +48,20 @@ class WalletPuzzleStore:
                 f" used {dialect_utils.data_type('tinyint', self.db_wrapper.db.url.dialect)})"
             )
         )
-        await self.db_connection.execute(
+        await dialect_utils.create_index_if_not_exists(
+            self.db_connection, 
             "CREATE INDEX IF NOT EXISTS derivation_index_index on derivation_paths(derivation_index)"
         )
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS ph on derivation_paths(puzzle_hash)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS ph on derivation_paths(puzzle_hash)")
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS pubkey on derivation_paths(pubkey)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS pubkey on derivation_paths(pubkey)")
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS wallet_type on derivation_paths(wallet_type)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_type on derivation_paths(wallet_type)")
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS wallet_id on derivation_paths(wallet_id)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_id on derivation_paths(wallet_id)")
 
-        await self.db_connection.execute("CREATE INDEX IF NOT EXISTS used on derivation_paths(wallet_type)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS used on derivation_paths(wallet_type)")
 
         # Lock
         self.lock = asyncio.Lock()  # external
@@ -89,11 +90,11 @@ class WalletPuzzleStore:
                 self.all_puzzle_hashes.add(record.puzzle_hash)
                 sql_records.append(
                     {
-                        "derivation_index": record.index,
+                        "derivation_index": int(record.index),
                         "pubkey": bytes(record.pubkey).hex(),
                         "puzzle_hash": record.puzzle_hash.hex(),
-                        "wallet_type": record.wallet_type,
-                        "wallet_id": record.wallet_id,
+                        "wallet_type": int(record.wallet_type),
+                        "wallet_id": int(record.wallet_id),
                         "used": 0,
                     }
                 )
@@ -114,8 +115,8 @@ class WalletPuzzleStore:
         row = await self.db_connection.fetch_one(
             "SELECT * FROM derivation_paths WHERE derivation_index=:derivation_index and wallet_id=:wallet_id;",
             {
-                "derivation_index": index,
-                "wallet_id": wallet_id,
+                "derivation_index": int(index),
+                "wallet_id": int(wallet_id),
             }
         )
 
@@ -160,7 +161,7 @@ class WalletPuzzleStore:
         try:
             await self.db_connection.execute(
                 "UPDATE derivation_paths SET used=1 WHERE derivation_index<=:derivation_index",
-                {"derivation_index": index},
+                {"derivation_index": int(index)},
             )
         finally:
             if not in_transaction:
@@ -228,7 +229,7 @@ class WalletPuzzleStore:
             "SELECT * from derivation_paths WHERE puzzle_hash=:puzzle_hash and wallet_id=:wallet_id;",
             {
                 "puzzle_hash": puzzle_hash.hex(),
-                "wallet_id": wallet_id,
+                "wallet_id": int(wallet_id),
             }
         )
 
@@ -284,7 +285,7 @@ class WalletPuzzleStore:
         """
 
         row = await self.db_connection.fetch_one(
-            f"SELECT MAX(derivation_index) FROM derivation_paths WHERE wallet_id={wallet_id};"
+            f"SELECT MAX(derivation_index) FROM derivation_paths WHERE wallet_id={int(wallet_id)};"
         )
 
         if row is not None and row[0] is not None:
@@ -298,7 +299,7 @@ class WalletPuzzleStore:
         """
 
         row = await self.db_connection.fetch_one(
-            f"SELECT MAX(derivation_index) FROM derivation_paths WHERE wallet_id={wallet_id} and used=1;"
+            f"SELECT MAX(derivation_index) FROM derivation_paths WHERE wallet_id={int(wallet_id)} and used=1;"
         )
 
         if row is not None and row[0] is not None:
