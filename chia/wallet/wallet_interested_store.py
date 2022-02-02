@@ -25,7 +25,7 @@ class WalletInterestedStore:
         await self.db_connection.execute(f"CREATE TABLE IF NOT EXISTS interested_coins(coin_name {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY)")
 
         await self.db_connection.execute(
-            "CREATE TABLE IF NOT EXISTS interested_puzzle_hashes(puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY, wallet_id integer)"
+            f"CREATE TABLE IF NOT EXISTS interested_puzzle_hashes(puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY, wallet_id integer)"
         )
         return self
 
