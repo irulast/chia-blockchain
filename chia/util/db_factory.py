@@ -31,8 +31,7 @@ async def _create_database_from_env_var(default_db_path):
         database = DatabaseWrapper(connection_string)
         await database.connect()
         return database
-    except Exception as e:
-        log.error('CREATE_DATABASE_ERRORAAAAAAAA')
+    except Exception as e: #TODO: change this to catch mysql specific exception
         log.error(traceback.format_exc())
         sys_conn = Database(db_root)
         await sys_conn.connect()
