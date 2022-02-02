@@ -73,20 +73,20 @@ class BlockStore:
         else:
 
             await self.db.execute(
-                "CREATE TABLE IF NOT EXISTS full_blocks(header_hash text PRIMARY KEY, height bigint,"
+                f"CREATE TABLE IF NOT EXISTS full_blocks(header_hash {dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY, height bigint,"
                 f" is_block {dialect_utils.data_type('tinyint', self.db.url.dialect)}, is_fully_compactified {dialect_utils.data_type('tinyint', self.db.url.dialect)}, block {dialect_utils.data_type('blob', self.db.url.dialect)})"
             )
 
             # Block records
             await self.db.execute(
                 "CREATE TABLE IF NOT EXISTS block_records(header_hash "
-                "text PRIMARY KEY, prev_hash text, height bigint,"
+                f"{dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY, prev_hash text, height bigint,"
                 f"block {dialect_utils.data_type('blob', self.db.url.dialect)}, sub_epoch_summary {dialect_utils.data_type('blob', self.db.url.dialect)}, is_peak {dialect_utils.data_type('tinyint', self.db.url.dialect)}, is_block {dialect_utils.data_type('tinyint', self.db.url.dialect)})"
             )
 
             # Sub epoch segments for weight proofs
             await self.db.execute(
-                "CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3(ses_block_hash text PRIMARY KEY,"
+                f"CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3(ses_block_hash {dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY,"
                 f"challenge_segments {dialect_utils.data_type('blob', self.db.url.dialect)})"
             )
 

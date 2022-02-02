@@ -58,13 +58,13 @@ class CoinStore:
             await self.coin_record_db.execute(
                 (
                     "CREATE TABLE IF NOT EXISTS coin_record("
-                    "coin_name text PRIMARY KEY,"
+                    f"coin_name {dialect_utils.data_type('text-as-index', self.coin_record_db.url.dialect)} PRIMARY KEY,"
                     " confirmed_index bigint,"
                     " spent_index bigint,"
                     " spent int,"
                     " coinbase int,"
-                    " puzzle_hash text,"
-                    " coin_parent text,"
+                    f" puzzle_hash {dialect_utils.data_type('text-as-index', self.coin_record_db.url.dialect)},"
+                    f" coin_parent {dialect_utils.data_type('text-as-index', self.coin_record_db.url.dialect)},"
                     f" amount {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"
                     " timestamp bigint)"
                 )

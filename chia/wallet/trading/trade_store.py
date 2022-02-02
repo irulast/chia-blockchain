@@ -32,7 +32,7 @@ class TradeStore:
             (
                 "CREATE TABLE IF NOT EXISTS trade_records("
                 f" trade_record {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
-                " trade_id text PRIMARY KEY,"
+                f" trade_id {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"
                 " status int,"
                 " confirmed_at_index int,"
                 " created_at_time bigint,"

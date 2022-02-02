@@ -36,7 +36,12 @@ clause_map = {
         SqlDialect.SQLITE: 'INDEXED BY',
         SqlDialect.POSTGRES: '', # postgres does not allow index hinting
         SqlDialect.MYSQL: 'USE INDEX'
-    }
+    },
+    'CREATE INDEX IF NOT EXISTS': {
+        SqlDialect.SQLITE: 'CREATE INDEX IF NOT EXISTS',
+        SqlDialect.POSTGRES: 'CREATE INDEX IF NOT EXISTS',
+        SqlDialect.MYSQL: 'CREATE INDEX'
+    },
 }
 def clause(clause: str, dialect: str):
     return clause_map[clause][SqlDialect(dialect)]
