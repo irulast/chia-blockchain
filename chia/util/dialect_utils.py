@@ -104,7 +104,7 @@ async def create_index_if_not_exists(database: Database, index_name: str, table_
     dialect = database.url.dialect
     if SqlDialect(dialect) == SqlDialect.SQLITE or SqlDialect(dialect) == SqlDialect.POSTGRES:
         await database.execute(f"CREATE INDEX IF NOT EXISTS {index_name} on {table_name}({', '.join(index_columns)}){f' WHERE {condition}' if condition else ''}")
-    if SqlDialect(database.url.dialect) == SqlDialect.MYSQL:
+    elif SqlDialect(database.url.dialect) == SqlDialect.MYSQL:
         try:
             await database.execute(f"CREATE INDEX {index_name} on {table_name}({', '.join(index_columns)})")
         except pymysql.err.InternalError as e:
@@ -118,7 +118,7 @@ async def drop_index_if_exists(database: Database, index_name: str, table_name: 
     dialect = database.url.dialect
     if SqlDialect(dialect) == SqlDialect.SQLITE or SqlDialect(dialect) == SqlDialect.POSTGRES:
         await database.execute(f"DROP INDEX IF EXISTS {index_name}")
-    if SqlDialect(database.url.dialect) == SqlDialect.MYSQL:
+    elif SqlDialect(database.url.dialect) == SqlDialect.MYSQL:
         try:
             await database.execute(f"DROP INDEX {index_name} on {table_name}")
         except pymysql.err.InternalError as e:
