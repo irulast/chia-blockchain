@@ -75,15 +75,19 @@ class CoinStore:
 
         await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_spent_index', 'coin_record', ['spent_index'])
 
-        if self.db_wrapper.allow_upgrades:
-            await dialect_utils.drop_index_if_exists(self.coin_record_db, 'coin_spent', 'coin_record')
-
         await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_puzzle_hash', 'coin_record', ['puzzle_hash'])
 
         await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_parent_index', 'coin_record', ['coin_parent'])
 
         self.coin_record_cache = LRUCache(cache_size)
         return self
+    # TODO
+    async def num_unspent(self) -> int:
+        async with self.coin_record_db.execute("SELECT COUNT(*) FROM coin_record WHERE spent_index=0") as cursor:
+            row = await cursor.fetchone()
+            if row is not None:
+                return row[0]
+        return 0
 
     def maybe_from_hex(self, field: Any) -> bytes:
         if self.db_wrapper.db_version == 2:
@@ -239,7 +243,7 @@ class CoinStore:
             puzzle_hashes_db = tuple(puzzle_hashes)
         else:
             puzzle_hashes_db = tuple([ph.hex() for ph in puzzle_hashes])
-        
+
         query = text(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
             f"coin_parent, amount, timestamp FROM coin_record {dialect_utils.indexed_by('coin_puzzle_hash', self.coin_record_db.url.dialect)} "
@@ -252,7 +256,7 @@ class CoinStore:
             bindparam("start_height", int(start_height)),
             bindparam("end_height", int(end_height))
         )
-        rows = await self.coin_record_db.fetch_all(query) 
+        rows = await self.coin_record_db.fetch_all(query)
 
         for row in rows:
             coin = self.row_to_coin(row)
@@ -275,7 +279,7 @@ class CoinStore:
             names_db = tuple(names)
         else:
             names_db = tuple([name.hex() for name in names])
-        
+
         query = text(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
             'coin_parent, amount, timestamp FROM coin_record '
@@ -288,7 +292,7 @@ class CoinStore:
             bindparam("start_height", int(start_height)),
             bindparam("end_height", int(end_height))
         )
-        rows = await self.coin_record_db.fetch_all(query) 
+        rows = await self.coin_record_db.fetch_all(query)
 
         for row in rows:
             coin = self.row_to_coin(row)
@@ -337,7 +341,7 @@ class CoinStore:
             bindparam("start_height", int(start_height)),
             bindparam("end_height", int(end_height))
         )
-        rows = await self.coin_record_db.fetch_all(query) 
+        rows = await self.coin_record_db.fetch_all(query)
 
         for row in rows:
             coins.add(self.row_to_coin_state(row))
@@ -373,7 +377,7 @@ class CoinStore:
             bindparam("start_height", int(start_height)),
             bindparam("end_height", int(end_height))
         )
-        rows = await self.coin_record_db.fetch_all(query) 
+        rows = await self.coin_record_db.fetch_all(query)
 
         for row in rows:
             coin = self.row_to_coin(row)
@@ -408,7 +412,7 @@ class CoinStore:
             bindparam("start_height", int(start_height)),
             bindparam("end_height", int(end_height))
         )
-        rows = await self.coin_record_db.fetch_all(query) 
+        rows = await self.coin_record_db.fetch_all(query)
 
         for row in rows:
             coins.add(self.row_to_coin_state(row))
@@ -441,21 +445,21 @@ class CoinStore:
         rows = await self.coin_record_db.fetch_all(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
             "coin_parent, amount, timestamp FROM coin_record WHERE confirmed_index>:min_confirmed_index",
-            {"min_confirmed_index": block_index},
-        ) 
+            {"min_confirmed_index": int(block_index)},
+        )
         for row in rows:
             coin = self.row_to_coin(row)
             record = CoinRecord(coin, uint32(0), row[1], row[2], uint64(0))
             coin_changes[record.name] = record
 
         # Delete from storage
-        await self.coin_record_db.execute("DELETE FROM coin_record WHERE confirmed_index>:min_confirmed_index",  {"min_confirmed_index": block_index})
+        await self.coin_record_db.execute("DELETE FROM coin_record WHERE confirmed_index>:min_confirmed_index",  {"min_confirmed_index": int(block_index)})
 
         rows = await self.coin_record_db.fetch_all(
             "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
             "coin_parent, amount, timestamp FROM coin_record WHERE confirmed_index>:min_confirmed_index",
-            {"min_confirmed_index": block_index},
-        ) 
+            {"min_confirmed_index": int(block_index)},
+        )
         for row in rows:
             coin = self.row_to_coin(row)
             record = CoinRecord(coin, row[0], uint32(0), row[2], row[6])
@@ -464,11 +468,11 @@ class CoinStore:
 
         if self.db_wrapper.db_version == 2:
             await self.coin_record_db.execute(
-                "UPDATE coin_record SET spent_index=0 WHERE spent_index>:min_spent_index", {"min_spent_index": block_index}
+                "UPDATE coin_record SET spent_index=0 WHERE spent_index>:min_spent_index", {"min_spent_index": int(block_index)}
             )
         else:
             await self.coin_record_db.execute(
-                "UPDATE coin_record SET spent_index = 0, spent = 0 WHERE spent_index>:min_spent_index", {"min_spent_index": block_index}
+                "UPDATE coin_record SET spent_index = 0, spent = 0 WHERE spent_index>:min_spent_index", {"min_spent_index": int(block_index)}
             )
         return list(coin_changes.values())
 

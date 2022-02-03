@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import random
+import dataclasses
 
 import pytest
 
@@ -8,6 +9,9 @@ from chia.consensus.blockchain import Blockchain
 from chia.full_node.block_store import BlockStore
 from chia.full_node.coin_store import CoinStore
 from chia.full_node.hint_store import HintStore
+from chia.util.ints import uint8
+from chia.types.blockchain_format.vdf import VDFProof
+from tests.blockchain.blockchain_test_utils import _validate_and_add_block
 from tests.util.db_connection import DBConnection
 from tests.setup_nodes import bt, test_constants
 
@@ -22,7 +26,6 @@ def event_loop():
 
 class TestBlockStore:
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("db_version", [1, 2])
     async def test_block_store(self, tmp_dir, db_version):
         blocks = bt.get_consecutive_blocks(10)
 
@@ -32,14 +35,14 @@ class TestBlockStore:
             coin_store_2 = await CoinStore.create(db_wrapper_2)
             store_2 = await BlockStore.create(db_wrapper_2)
             hint_store = await HintStore.create(db_wrapper_2)
-            bc = await Blockchain.create(coin_store_2, store_2, test_constants, hint_store, tmp_dir)
+            bc = await Blockchain.create(coin_store_2, store_2, test_constants, hint_store, tmp_dir, 2)
 
             store = await BlockStore.create(db_wrapper)
             await BlockStore.create(db_wrapper_2)
 
             # Save/get block
             for block in blocks:
-                await bc.receive_block(block)
+                await _validate_and_add_block(bc, block)
                 block_record = bc.block_record(block.header_hash)
                 block_record_hh = block_record.header_hash
                 await store.add_full_block(block.header_hash, block, block_record)
@@ -60,7 +63,6 @@ class TestBlockStore:
             assert len(block_record_records) == len(blocks)
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("db_version", [1, 2])
     async def test_deadlock(self, tmp_dir, db_version):
         """
         This test was added because the store was deadlocking in certain situations, when fetching and
@@ -74,10 +76,10 @@ class TestBlockStore:
             coin_store_2 = await CoinStore.create(wrapper_2)
             store_2 = await BlockStore.create(wrapper_2)
             hint_store = await HintStore.create(wrapper_2)
-            bc = await Blockchain.create(coin_store_2, store_2, test_constants, hint_store, tmp_dir)
+            bc = await Blockchain.create(coin_store_2, store_2, test_constants, hint_store, tmp_dir, 2)
             block_records = []
             for block in blocks:
-                await bc.receive_block(block)
+                await _validate_and_add_block(bc, block)
                 block_records.append(bc.block_record(block.header_hash))
             tasks = []
 
@@ -103,12 +105,12 @@ class TestBlockStore:
             coin_store = await CoinStore.create(db_wrapper)
             block_store = await BlockStore.create(db_wrapper)
             hint_store = await HintStore.create(db_wrapper)
-            bc = await Blockchain.create(coin_store, block_store, test_constants, hint_store, tmp_dir)
+            bc = await Blockchain.create(coin_store, block_store, test_constants, hint_store, tmp_dir, 2)
 
             # insert all blocks
             count = 0
             for block in blocks:
-                await bc.receive_block(block)
+                await _validate_and_add_block(bc, block)
                 count += 1
                 ret = await block_store.get_random_not_compactified(count)
                 assert len(ret) == count
@@ -135,3 +137,85 @@ class TestBlockStore:
                 assert len(rows) == 1
                 assert rows[0][0] == (count <= 5)
                 count += 1
+
+    @pytest.mark.asyncio
+    async def test_count_compactified_blocks(self, tmp_dir, db_version):
+        blocks = bt.get_consecutive_blocks(10)
+
+        async with DBConnection(db_version) as db_wrapper:
+            coin_store = await CoinStore.create(db_wrapper)
+            block_store = await BlockStore.create(db_wrapper)
+            hint_store = await HintStore.create(db_wrapper)
+            bc = await Blockchain.create(coin_store, block_store, test_constants, hint_store, tmp_dir, 2)
+
+            count = await block_store.count_compactified_blocks()
+            assert count == 0
+
+            for block in blocks:
+                await _validate_and_add_block(bc, block)
+
+            count = await block_store.count_compactified_blocks()
+            assert count == 0
+
+    @pytest.mark.asyncio
+    async def test_count_uncompactified_blocks(self, tmp_dir, db_version):
+        blocks = bt.get_consecutive_blocks(10)
+
+        async with DBConnection(db_version) as db_wrapper:
+            coin_store = await CoinStore.create(db_wrapper)
+            block_store = await BlockStore.create(db_wrapper)
+            hint_store = await HintStore.create(db_wrapper)
+            bc = await Blockchain.create(coin_store, block_store, test_constants, hint_store, tmp_dir, 2)
+
+            count = await block_store.count_uncompactified_blocks()
+            assert count == 0
+
+            for block in blocks:
+                await _validate_and_add_block(bc, block)
+
+            count = await block_store.count_uncompactified_blocks()
+            assert count == 10
+
+    @pytest.mark.asyncio
+    async def test_replace_proof(self, tmp_dir, db_version):
+        blocks = bt.get_consecutive_blocks(10)
+
+        def rand_bytes(num) -> bytes:
+            ret = bytearray(num)
+            for i in range(num):
+                ret[i] = random.getrandbits(8)
+            return bytes(ret)
+
+        def rand_vdf_proof() -> VDFProof:
+            return VDFProof(
+                uint8(1),  # witness_type
+                rand_bytes(32),  # witness
+                bool(random.randint(0, 1)),  # normalized_to_identity
+            )
+
+        async with DBConnection(db_version) as db_wrapper:
+            coin_store = await CoinStore.create(db_wrapper)
+            block_store = await BlockStore.create(db_wrapper)
+            hint_store = await HintStore.create(db_wrapper)
+            bc = await Blockchain.create(coin_store, block_store, test_constants, hint_store, tmp_dir, 2)
+            for block in blocks:
+                await _validate_and_add_block(bc, block)
+
+            replaced = []
+
+            for block in blocks:
+                assert block.challenge_chain_ip_proof is not None
+                proof = rand_vdf_proof()
+                replaced.append(proof)
+                new_block = dataclasses.replace(block, challenge_chain_ip_proof=proof)
+                await block_store.replace_proof(block.header_hash, new_block)
+
+            for block, proof in zip(blocks, replaced):
+                b = await block_store.get_full_block(block.header_hash)
+                assert b.challenge_chain_ip_proof == proof
+
+                # make sure we get the same result when we hit the database
+                # itself (and not just the block cache)
+                block_store.rollback_cache_block(block.header_hash)
+                b = await block_store.get_full_block(block.header_hash)
+                assert b.challenge_chain_ip_proof == proof

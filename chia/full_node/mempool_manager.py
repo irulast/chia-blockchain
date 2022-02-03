@@ -5,13 +5,13 @@ import logging
 import time
 from concurrent.futures.process import ProcessPoolExecutor
 from typing import Dict, List, Optional, Set, Tuple
-from blspy import G1Element, GTElement
+from blspy import GTElement
 from chiabip158 import PyBIP158
 
 from chia.util import cached_bls
 from chia.consensus.block_record import BlockRecord
 from chia.consensus.constants import ConsensusConstants
-from chia.consensus.cost_calculator import NPCResult, calculate_cost_of_program
+from chia.consensus.cost_calculator import NPCResult
 from chia.full_node.bundle_tools import simple_solution_generator
 from chia.full_node.coin_store import CoinStore
 from chia.full_node.mempool import Mempool
@@ -19,7 +19,7 @@ from chia.full_node.mempool_check_conditions import mempool_check_conditions_dic
 from chia.full_node.pending_tx_cache import PendingTxCache
 from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.program import SerializedProgram
-from chia.types.blockchain_format.sized_bytes import bytes32
+from chia.types.blockchain_format.sized_bytes import bytes32, bytes48
 from chia.types.coin_record import CoinRecord
 from chia.types.condition_opcodes import ConditionOpcode
 from chia.types.condition_with_args import ConditionWithArgs
@@ -57,12 +57,9 @@ def validate_clvm_and_signature(
         if result.error is not None:
             return Err(result.error), b"", {}
 
-        pks: List[G1Element] = []
-        msgs: List[bytes32] = []
-        # TODO: address hint error and remove ignore
-        #       error: Incompatible types in assignment (expression has type "List[bytes]", variable has type
-        #       "List[bytes32]")  [assignment]
-        pks, msgs = pkm_pairs(result.npc_list, additional_data)  # type: ignore[assignment]
+        pks: List[bytes48]
+        msgs: List[bytes]
+        pks, msgs = pkm_pairs(result.npc_list, additional_data)
 
         # Verify aggregated signature
         cache: LRUCache = LRUCache(10000)
@@ -249,6 +246,7 @@ class MempoolManager:
         start_time = time.time()
         if new_spend_bytes is None:
             new_spend_bytes = bytes(new_spend)
+
         err, cached_result_bytes, new_cache_entries = await asyncio.get_running_loop().run_in_executor(
             self.pool,
             validate_clvm_and_signature,
@@ -257,6 +255,7 @@ class MempoolManager:
             self.constants.COST_PER_BYTE,
             self.constants.AGG_SIG_ME_ADDITIONAL_DATA,
         )
+
         if err is not None:
             raise ValidationError(err)
         for cache_entry_key, cached_entry_value in new_cache_entries.items():
@@ -285,7 +284,7 @@ class MempoolManager:
         assert npc_result.error is None
         if program is None:
             program = simple_solution_generator(new_spend).program
-        cost = calculate_cost_of_program(program, npc_result, self.constants.COST_PER_BYTE)
+        cost = npc_result.cost
 
         log.debug(f"Cost: {cost}")
 
@@ -344,14 +343,19 @@ class MempoolManager:
                 return None, MempoolInclusionStatus.FAILED, Err.UNKNOWN_UNSPENT
             elif name in additions_dict:
                 removal_coin = additions_dict[name]
-                # TODO(straya): what timestamp to use here?
+                # The timestamp and block-height of this coin being spent needs
+                # to be consistent with what we use to check time-lock
+                # conditions (below). All spends (including ephemeral coins) are
+                # spent simultaneously. Ephemeral coins with an
+                # ASSERT_SECONDS_RELATIVE 0 condition are still OK to spend in
+                # the same block.
                 assert self.peak.timestamp is not None
                 removal_record = CoinRecord(
                     removal_coin,
                     uint32(self.peak.height + 1),  # In mempool, so will be included in next height
                     uint32(0),
                     False,
-                    uint64(self.peak.timestamp + 1),
+                    self.peak.timestamp,
                 )
 
             assert removal_record is not None
@@ -362,7 +366,6 @@ class MempoolManager:
         removals: List[Coin] = [coin for coin in removal_coin_dict.values()]
 
         if addition_amount > removal_amount:
-            print(addition_amount, removal_amount)
             return None, MempoolInclusionStatus.FAILED, Err.MINTING_COIN
 
         fees = uint64(removal_amount - addition_amount)
@@ -553,7 +556,7 @@ class MempoolManager:
                 txs_added.append((item.spend_bundle, item.npc_result, item.spend_bundle_name))
         log.info(
             f"Size of mempool: {len(self.mempool.spends)} spends, cost: {self.mempool.total_mempool_cost} "
-            f"minimum fee to get in: {self.mempool.get_min_fee_rate(100000)}"
+            f"minimum fee rate (in FPC) to get in for 5M cost tx: {self.mempool.get_min_fee_rate(5000000)}"
         )
         return txs_added
 

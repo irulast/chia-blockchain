@@ -12,7 +12,7 @@ class DBConnection:
         self.temp_file_db = TempFileDatabase()
         self.connection = self.temp_file_db.connection
         await self.connection.connect()
-        return DBWrapper(self.connection, False, self.db_version)
+        return DBWrapper(self.connection, self.db_version)
 
     async def __aexit__(self, exc_t, exc_v, exc_tb):
         await self.temp_file_db.disconnect()

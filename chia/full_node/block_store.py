@@ -33,6 +33,7 @@ class BlockStore:
         self.db = db_wrapper.db
 
         if self.db_wrapper.db_version == 2:
+
             # TODO: most data in block is duplicated in block_record. The only
             # reason for this is that our parsing of a FullBlock is so slow,
             # it's faster to store duplicate data to parse less when we just
@@ -91,13 +92,9 @@ class BlockStore:
 
             await dialect_utils.create_index_if_not_exists(self.db, 'height', 'block_records', ['height'])
 
-            if self.db_wrapper.allow_upgrades:
-                await dialect_utils.drop_index_if_exists(self.db, 'hh', 'block_records')
-                await dialect_utils.drop_index_if_exists(self.db, 'is_block', 'block_records')
-                await dialect_utils.drop_index_if_exists(self.db, 'peak', 'block_records')
-                await dialect_utils.create_index_if_not_exists(self.db, 'is_peak_eq_1_idx', 'block_records', ['is_peak'], 'is_peak = 1')
-            else:
-                await dialect_utils.create_index_if_not_exists(self.db, 'peak', 'block_records', ['is_peak'], 'is_peak = 1')
+            await dialect_utils.create_index_if_not_exists(self.db, 'peak', 'block_records', ['is_peak'], 'is_peak = 1')
+
+
         self.block_cache = LRUCache(1000)
         self.ses_challenge_cache = LRUCache(50)
         return self
@@ -135,6 +132,27 @@ class BlockStore:
                 "UPDATE full_blocks SET in_main_chain=1 WHERE header_hash=:header_hash", map(lambda header_hash: {"header_hash": header_hash}, header_hashes)
             )
 
+    async def replace_proof(self, header_hash: bytes32, block: FullBlock) -> None:
+
+        assert header_hash == block.header_hash
+
+        block_bytes: bytes
+        if self.db_wrapper.db_version == 2:
+            block_bytes = self.compress(block)
+        else:
+            block_bytes = bytes(block)
+
+        self.block_cache.put(header_hash, block)
+        # TODO
+        await self.db.execute(
+            "UPDATE full_blocks SET block=?,is_fully_compactified=? WHERE header_hash=?",
+            (
+                block_bytes,
+                int(block.is_fully_compactified()),
+                self.maybe_to_hex(header_hash),
+            ),
+        )
+
     async def add_full_block(self, header_hash: bytes32, block: FullBlock, block_record: BlockRecord) -> None:
         self.block_cache.put(header_hash, block)
 
@@ -148,13 +166,14 @@ class BlockStore:
             row_to_insert = {
                 "header_hash": header_hash,
                 "prev_hash": block.prev_header_hash,
-                "height": block.height,
+                "height": int(block.height),
                 "sub_epoch_summary": ses,
                 "is_fully_compactified": int(block.is_fully_compactified()),
-                "in_main_chain": 0,  # in_main_chain
+                "in_main_chain": False,  # in_main_chain
                 "block": self.compress(block),
                 "block_record": bytes(block_record),
             }
+            # TODO: change to INSERT OR IGNORE
             await self.db.execute(
                 dialect_utils.upsert_query("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
                 row_to_insert
@@ -168,10 +187,12 @@ class BlockStore:
                 "is_fully_compactified": int(block.is_fully_compactified()),
                 "block": bytes(block),
             }
+            # TODO: change to INSERT OR IGNORE
             await self.db.execute(
                 dialect_utils.upsert_query("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
                 row_to_insert
             )
+            # TODO: change to INSERT OR IGNORE
             row_to_insert = {
                 "header_hash": header_hash.hex(),
                 "prev_hash": block.prev_header_hash.hex(),
@@ -284,11 +305,11 @@ class BlockStore:
         if self.db_wrapper.db_version == 2:
             query = text("SELECT header_hash, block_record FROM full_blocks WHERE header_hash in :header_hashes")
             query = query.bindparams(bindparam("header_hashes", tuple(header_hashes), expanding=True))
-            rows = await self.db.fetch_all(query) 
+            rows = await self.db.fetch_all(query)
             for row in rows:
                 header_hash = bytes32(row[0])
                 all_blocks[header_hash] = BlockRecord.from_bytes(row[1])
-                
+
         else:
             query = text('SELECT block from block_records WHERE header_hash in :header_hashes')
             query = query.bindparams(bindparam('header_hashes', tuple([hh.hex() for hh in header_hashes]), expanding = True))
@@ -296,7 +317,7 @@ class BlockStore:
             for row in rows:
                 block_rec: BlockRecord = BlockRecord.from_bytes(row[0])
                 all_blocks[block_rec.header_hash] = block_rec
-                
+
 
         ret: List[BlockRecord] = []
         for hh in header_hashes:
@@ -478,3 +499,21 @@ class BlockStore:
         heights = [int(row[0]) for row in rows]
 
         return heights
+    # TODO
+    async def count_compactified_blocks(self) -> int:
+        async with self.db.execute("select count(*) from full_blocks where is_fully_compactified=1") as cursor:
+            row = await cursor.fetchone()
+
+        assert row is not None
+
+        [count] = row
+        return int(count)
+
+    async def count_uncompactified_blocks(self) -> int:
+        async with self.db.execute("select count(*) from full_blocks where is_fully_compactified=0") as cursor:
+            row = await cursor.fetchone()
+
+        assert row is not None
+
+        [count] = row
+        return int(count)
