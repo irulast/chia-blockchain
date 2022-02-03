@@ -4,6 +4,7 @@ import logging
 import traceback
 import asyncpg
 from databases import Database
+import pymysql
 log = logging.getLogger(__name__)
 
 async def get_database_connection(default_db_path: str) -> Database:
@@ -19,27 +20,34 @@ async def _create_database_from_env_var(default_db_path):
     db_name = default_db_path.split('/')[-1].replace('.sqlite', '')
     db_root  = os.environ.get("CHIA_DB_ROOT")
     connection_string = f"{db_root}{db_name}"
+
+    database = DatabaseWrapper(connection_string)
     try:
-        database = DatabaseWrapper(connection_string)
         await database.connect()
         return database
     except asyncpg.InvalidCatalogNameError:
+        log.info(f"Attempting to create postgres database {db_name}")
         sys_conn = Database(f"{db_root}postgres")
         await sys_conn.connect()
         await sys_conn.execute(f'CREATE DATABASE "{db_name}"')
+        log.info(f"Created postgres database {db_name}")
         await sys_conn.disconnect()
         database = DatabaseWrapper(connection_string)
         await database.connect()
         return database
-    except Exception as e: #TODO: change this to catch mysql specific exception
-        log.error(traceback.format_exc())
-        sys_conn = Database(db_root)
-        await sys_conn.connect()
-        await sys_conn.execute(f'CREATE DATABASE {db_name}')
-        await sys_conn.disconnect()
-        database = DatabaseWrapper(connection_string)
-        await database.connect()
-        return database
+    except pymysql.err.OperationalError as e:
+        if "Can't connect to MySQL server" in str(e):
+            log.info(f"Attempting to create mysql database {db_name}")
+            sys_conn = Database(db_root)
+            await sys_conn.connect()
+            await sys_conn.execute(f'CREATE DATABASE {db_name}')
+            log.info(f"Created mysql database {db_name}")
+            await sys_conn.disconnect()
+            database = DatabaseWrapper(connection_string)
+            await database.connect()
+            return database
+        else:
+            raise e
 
 class DatabaseWrapper(Database):
     async def execute(self, *args, **kwargs):

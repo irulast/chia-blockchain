@@ -58,8 +58,6 @@ class WalletTransactionStore:
 
         await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_sent', 'transaction_record', ['sent'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_created_time', 'transaction_record', ['created_at_time'])
-
         await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_type', 'transaction_record', ['type'])
 
         await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_to_puzzle_hash', 'transaction_record', ['to_puzzle_hash'])

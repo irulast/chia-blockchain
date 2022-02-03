@@ -58,7 +58,7 @@ class WalletPuzzleStore:
 
         await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_id', 'derivation_paths', ['wallet_id'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'used', 'derivation_paths', ['wallet_type'])
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'used', 'derivation_paths', ['used'])
 
         # Lock
         self.lock = asyncio.Lock()  # external
