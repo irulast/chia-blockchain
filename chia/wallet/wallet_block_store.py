@@ -44,11 +44,11 @@ class WalletBlockStore:
             f" timestamp int, block {dialect_utils.data_type('blob', self.db.url.dialect)})"
         )
 
-        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS header_hash on header_blocks(header_hash)")
+        await dialect_utils.create_index_if_not_exists(self.db, 'header_hash', 'header_blocks', ['header_hash'])
 
-        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS timestamp on header_blocks(timestamp)")
+        await dialect_utils.create_index_if_not_exists(self.db, 'timestamp', 'header_blocks', ['timestamp'])
 
-        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS height on header_blocks(height)")
+        await dialect_utils.create_index_if_not_exists(self.db, 'height', 'header_blocks', ['height'])
 
         # Block records
         await self.db.execute(
@@ -62,10 +62,10 @@ class WalletBlockStore:
         )
 
         # Height index so we can look up in order of height for sync purposes
-        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS height on block_records(height)")
+        await dialect_utils.create_index_if_not_exists(self.db, 'height', 'block_records', ['height'])
 
-        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS hh on block_records(header_hash)")
-        await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS peak on block_records(is_peak)")
+        await dialect_utils.create_index_if_not_exists(self.db, 'hh', 'block_records', ['header_hash'])
+        await dialect_utils.create_index_if_not_exists(self.db, 'peak', 'block_records', ['is_peak'])
         #await self.db.commit()
         self.block_cache = LRUCache(1000)
         return self

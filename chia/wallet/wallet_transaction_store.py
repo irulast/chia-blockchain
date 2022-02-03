@@ -50,33 +50,21 @@ class WalletTransactionStore:
         )
 
         # Useful for reorg lookups
-        await dialect_utils.create_index_if_not_exists(
-            self.db_connection, 
-            "CREATE INDEX IF NOT EXISTS tx_confirmed_index on transaction_record(confirmed_at_height)"
-        )
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_confirmed_index', 'transaction_record', ['confirmed_at_height'])
 
-        await dialect_utils.create_index_if_not_exists(
-            self.db_connection, 
-            "CREATE INDEX IF NOT EXISTS tx_created_index on transaction_record(created_at_time)"
-        )
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_created_index', 'transaction_record', ['created_at_time'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS tx_confirmed on transaction_record(confirmed)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_confirmed', 'transaction_record', ['confirmed'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS tx_sent on transaction_record(sent)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_sent', 'transaction_record', ['sent'])
 
-        await dialect_utils.create_index_if_not_exists(
-            self.db_connection, 
-            "CREATE INDEX IF NOT EXISTS tx_created_time on transaction_record(created_at_time)"
-        )
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_created_time', 'transaction_record', ['created_at_time'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS tx_type on transaction_record(type)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_type', 'transaction_record', ['type'])
 
-        await dialect_utils.create_index_if_not_exists(
-            self.db_connection, 
-            "CREATE INDEX IF NOT EXISTS tx_to_puzzle_hash on transaction_record(to_puzzle_hash)"
-        )
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_to_puzzle_hash', 'transaction_record', ['to_puzzle_hash'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_id on transaction_record(wallet_id)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_id', 'transaction_record', ['wallet_id'])
 
         self.tx_record_cache = {}
         self.tx_submitted = {}

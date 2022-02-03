@@ -68,16 +68,16 @@ class CrawlStore:
 
         await self.crawl_db.execute(f"CREATE TABLE IF NOT EXISTS good_peers(ip {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)})")
 
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, "CREATE INDEX IF NOT EXISTS ip_address on peer_records(ip_address)")
+        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'ip_address', 'peer_records', ['ip_address'])
 
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, "CREATE INDEX IF NOT EXISTS port on peer_records(port)")
+        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'port', 'peer_records', ['port'])
 
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, "CREATE INDEX IF NOT EXISTS connected on peer_records(connected)")
+        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'connected', 'peer_records', ['connected'])
 
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, "CREATE INDEX IF NOT EXISTS added_timestamp on peer_records(added_timestamp)")
+        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'added_timestamp', 'peer_records', ['added_timestamp'])
 
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, "CREATE INDEX IF NOT EXISTS peer_id on peer_reliability(peer_id)")
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, "CREATE INDEX IF NOT EXISTS ignore_till on peer_reliability(ignore_till)")
+        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'peer_id', 'peer_reliability', ['peer_id'])
+        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'ignore_till', 'peer_reliability', ['ignore_till'])
 
         self.last_timestamp = 0
         self.ignored_peers = 0

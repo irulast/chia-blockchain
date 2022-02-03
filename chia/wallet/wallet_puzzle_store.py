@@ -48,20 +48,17 @@ class WalletPuzzleStore:
                 f" used {dialect_utils.data_type('tinyint', self.db_wrapper.db.url.dialect)})"
             )
         )
-        await dialect_utils.create_index_if_not_exists(
-            self.db_connection, 
-            "CREATE INDEX IF NOT EXISTS derivation_index_index on derivation_paths(derivation_index)"
-        )
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'derivation_index_index', 'derivation_paths', ['derivation_index'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS ph on derivation_paths(puzzle_hash)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'ph', 'derivation_paths', ['puzzle_hash'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS pubkey on derivation_paths(pubkey)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'pubkey', 'derivation_paths', ['pubkey'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_type on derivation_paths(wallet_type)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_type', 'derivation_paths', ['wallet_type'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_id on derivation_paths(wallet_id)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_id', 'derivation_paths', ['wallet_id'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS used on derivation_paths(wallet_type)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'used', 'derivation_paths', ['wallet_type'])
 
         # Lock
         self.lock = asyncio.Lock()  # external

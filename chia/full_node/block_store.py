@@ -54,7 +54,7 @@ class BlockStore:
             # peak. The "key" field is there to make update statements simple
             await self.db.execute(f"CREATE TABLE IF NOT EXISTS current_peak(key int PRIMARY KEY, hash {dialect_utils.data_type('blob', self.db.url.dialect)})")
 
-            await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS height on full_blocks(height)")
+            await dialect_utils.create_index_if_not_exists(self.db, 'height', 'full_blocks', ['height'])
 
             # Sub epoch segments for weight proofs
             await self.db.execute(
@@ -63,15 +63,8 @@ class BlockStore:
                 f"challenge_segments {dialect_utils.data_type('blob', self.db.url.dialect)})"
             )
 
-            await dialect_utils.create_index_if_not_exists(
-                self.db, 
-                "CREATE INDEX IF NOT EXISTS is_fully_compactified ON"
-                " full_blocks(is_fully_compactified, in_main_chain) WHERE in_main_chain=1"
-            )
-            await dialect_utils.create_index_if_not_exists(
-                self.db,
-                "CREATE INDEX IF NOT EXISTS main_chain ON full_blocks(height, in_main_chain) WHERE in_main_chain=1"
-            )
+            await dialect_utils.create_index_if_not_exists(self.db, 'is_fully_compactified', 'full_blocks', ['is_fully_compactified', 'in_main_chain'], 'in_main_chain=1')
+            await dialect_utils.create_index_if_not_exists(self.db, 'main_chain', 'full_blocks', ['height', 'in_main_chain'], 'in_main_chain=1')
         else:
 
             await self.db.execute(
@@ -93,24 +86,18 @@ class BlockStore:
             )
 
             # Height index so we can look up in order of height for sync purposes
-            await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS full_block_height on full_blocks(height)")
-            await dialect_utils.create_index_if_not_exists(
-                self.db, 
-                "CREATE INDEX IF NOT EXISTS is_fully_compactified on full_blocks(is_fully_compactified)"
-            )
+            await dialect_utils.create_index_if_not_exists(self.db, 'full_block_height', 'full_blocks', ['height'])
+            await dialect_utils.create_index_if_not_exists(self.db, 'is_fully_compactified', 'full_blocks', ['is_fully_compactified'])
 
-            await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS height on block_records(height)")
+            await dialect_utils.create_index_if_not_exists(self.db, 'height', 'block_records', ['height'])
 
             if self.db_wrapper.allow_upgrades:
-                await dialect_utils.drop_index_if_exists(self.db, "DROP INDEX IF EXISTS hh", 'block_records')
-                await dialect_utils.drop_index_if_exists(self.db, "DROP INDEX IF EXISTS is_block", 'block_records')
-                await dialect_utils.drop_index_if_exists(self.db, "DROP INDEX IF EXISTS peak", 'block_records')
-                await dialect_utils.create_index_if_not_exists(
-                    self.db, 
-                    "CREATE INDEX IF NOT EXISTS is_peak_eq_1_idx on block_records(is_peak) where is_peak = 1"
-                )
+                await dialect_utils.drop_index_if_exists(self.db, 'hh', 'block_records')
+                await dialect_utils.drop_index_if_exists(self.db, 'is_block', 'block_records')
+                await dialect_utils.drop_index_if_exists(self.db, 'peak', 'block_records')
+                await dialect_utils.create_index_if_not_exists(self.db, 'is_peak_eq_1_idx', 'block_records', ['is_peak'], 'is_peak = 1')
             else:
-                await dialect_utils.create_index_if_not_exists(self.db, "CREATE INDEX IF NOT EXISTS peak on block_records(is_peak) where is_peak = 1")
+                await dialect_utils.create_index_if_not_exists(self.db, 'peak', 'block_records', ['is_peak'], 'is_peak = 1')
         self.block_cache = LRUCache(1000)
         self.ses_challenge_cache = LRUCache(50)
         return self

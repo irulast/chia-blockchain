@@ -20,7 +20,7 @@ class HintStore:
         await self.coin_record_db.execute(
             f"CREATE TABLE IF NOT EXISTS hints(id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_wrapper.db.url.dialect)}, coin_id {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},  hint {dialect_utils.data_type('blob-as-index', self.db_wrapper.db.url.dialect)})"
         )
-        await dialect_utils.create_index_if_not_exists(self.coin_record_db, "CREATE INDEX IF NOT EXISTS hint_index on hints(hint)")
+        await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'hint_index', 'hints', ['hint'])
         return self
 
     async def get_coin_ids(self, hint: bytes) -> List[bytes32]:

@@ -73,8 +73,8 @@ async def setup_db(db: DBWrapper):
         )
         await db.db.execute(f"CREATE TABLE IF NOT EXISTS current_peak(key int PRIMARY KEY, hash {dialect_utils.data_type('blob', db.db.url.dialect)})")
 
-        await dialect_utils.create_index_if_not_exists(db.db, "CREATE INDEX IF NOT EXISTS height on full_blocks(height)")
-        await dialect_utils.create_index_if_not_exists(db.db, "CREATE INDEX IF NOT EXISTS hh on full_blocks(header_hash)")
+        await dialect_utils.create_index_if_not_exists(db.db, 'height', 'full_blocks', ['height'])
+        await dialect_utils.create_index_if_not_exists(db.db, 'hh', 'full_blocks', ['header_hash'])
     else:
         await db.db.execute(
             "CREATE TABLE IF NOT EXISTS block_records("
@@ -84,9 +84,9 @@ async def setup_db(db: DBWrapper):
             f"sub_epoch_summary {dialect_utils.data_type('blob', db.db.url.dialect)},"
             f"is_peak {'tinyint' if db.db.url.dialect == 'sqlite' else 'smallint'})"
         )
-        await dialect_utils.create_index_if_not_exists(db.db, "CREATE INDEX IF NOT EXISTS height on block_records(height)")
-        await dialect_utils.create_index_if_not_exists(db.db, "CREATE INDEX IF NOT EXISTS hh on block_records(header_hash)")
-        await dialect_utils.create_index_if_not_exists(db.db, "CREATE INDEX IF NOT EXISTS peak on block_records(is_peak)")
+        await dialect_utils.create_index_if_not_exists(db.db, 'height', 'block_records', ['height'])
+        await dialect_utils.create_index_if_not_exists(db.db, 'hh', 'block_records', ['header_hash'])
+        await dialect_utils.create_index_if_not_exists(db.db, 'peak', 'block_records', ['is_peak'])
 
 
 # if chain_id != 0, the last block in the chain won't be considered the peak,

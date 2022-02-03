@@ -39,11 +39,11 @@ class WalletActionStore:
             )
         )
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS name on action_queue(name)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'name', 'action_queue', ['name'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_id on action_queue(wallet_id)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_id', 'action_queue', ['wallet_id'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_type on action_queue(wallet_type)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_type', 'action_queue', ['wallet_type'])
 
         # await self.db_connection.commit()
         return self

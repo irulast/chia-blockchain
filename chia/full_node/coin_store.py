@@ -71,18 +71,16 @@ class CoinStore:
             )
 
         # Useful for reorg lookups
-        await dialect_utils.create_index_if_not_exists(self.coin_record_db, 
-            "CREATE INDEX IF NOT EXISTS coin_confirmed_index on coin_record(confirmed_index)"
-        )
+        await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_confirmed_index', 'coin_record', ['confirmed_index'])
 
-        await dialect_utils.create_index_if_not_exists(self.coin_record_db, "CREATE INDEX IF NOT EXISTS coin_spent_index on coin_record(spent_index)")
+        await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_spent_index', 'coin_record', ['spent_index'])
 
         if self.db_wrapper.allow_upgrades:
-            await dialect_utils.drop_index_if_exists(self.coin_record_db, "DROP INDEX IF EXISTS coin_spent", 'coin_record')
+            await dialect_utils.drop_index_if_exists(self.coin_record_db, 'coin_spent', 'coin_record')
 
-        await dialect_utils.create_index_if_not_exists(self.coin_record_db, "CREATE INDEX IF NOT EXISTS coin_puzzle_hash on coin_record(puzzle_hash)")
+        await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_puzzle_hash', 'coin_record', ['puzzle_hash'])
 
-        await dialect_utils.create_index_if_not_exists(self.coin_record_db, "CREATE INDEX IF NOT EXISTS coin_parent_index on coin_record(coin_parent)")
+        await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_parent_index', 'coin_record', ['coin_parent'])
 
         self.coin_record_cache = LRUCache(cache_size)
         return self

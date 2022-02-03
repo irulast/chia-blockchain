@@ -35,11 +35,11 @@ class WalletUserStore:
             )
         )
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS name on users_wallets(name)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'name', 'users_wallets', ['name'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS type on users_wallets(wallet_type)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'type', 'users_wallets', ['wallet_type'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS data on users_wallets(data)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'data', 'users_wallets', ['data'])
 
         await self.init_wallet()
         return self

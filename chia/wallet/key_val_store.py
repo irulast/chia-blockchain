@@ -26,8 +26,7 @@ class KeyValStore:
             f"CREATE TABLE IF NOT EXISTS key_val_store({dialect_utils.reserved_word('key', self.db_connection.url.dialect)} {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY, value text)"
         )
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, f"CREATE INDEX IF NOT EXISTS name on key_val_store({dialect_utils.reserved_word('key', self.db_connection.url.dialect)})")
-
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'name', 'key_val_store', [dialect_utils.reserved_word('key', self.db_connection.url.dialect)])
         return self
 
     async def _clear_database(self):

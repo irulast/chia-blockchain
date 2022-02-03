@@ -48,18 +48,15 @@ class WalletCoinStore:
         )
 
         # Useful for reorg lookups
-        await dialect_utils.create_index_if_not_exists(
-            self.db_connection, 
-            "CREATE INDEX IF NOT EXISTS coin_confirmed_height on coin_record(confirmed_height)"
-        )
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS coin_spent_height on coin_record(spent_height)")
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS coin_spent on coin_record(spent)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_confirmed_height', 'coin_record', ['confirmed_height'])
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_spent_height', 'coin_record', ['spent_height'])
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_spent', 'coin_record', ['spent'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS coin_puzzle_hash on coin_record(puzzle_hash)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_puzzle_hash', 'coin_record', ['puzzle_hash'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_type on coin_record(wallet_type)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_type', 'coin_record', ['wallet_type'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS wallet_id on coin_record(wallet_id)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_id', 'coin_record', ['wallet_id'])
 
         #await self.db_connection.commit()
         self.coin_record_cache = {}

@@ -40,12 +40,9 @@ class TradeStore:
             )
         )
 
-        await dialect_utils.create_index_if_not_exists(
-            self.db_connection, 
-            "CREATE INDEX IF NOT EXISTS trade_confirmed_index on trade_records(confirmed_at_index)"
-        )
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS trade_status on trade_records(status)")
-        await dialect_utils.create_index_if_not_exists(self.db_connection, "CREATE INDEX IF NOT EXISTS trade_id on trade_records(trade_id)")
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'trade_confirmed_index', 'trade_records', ['confirmed_at_index'])
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'trade_status', 'trade_records', ['status'])
+        await dialect_utils.create_index_if_not_exists(self.db_connection, 'trade_id', 'trade_records', ['trade_id'])
 
         return self
 
