@@ -76,8 +76,7 @@ async def convert_v1_to_v2(in_path: Path, out_path: Path) -> None:
     print(f"opening file for reading: {in_path}")
     async with await get_database_connection(in_path) as in_db:
         try:
-            # TODO
-            row = in_db.fetch_one("SELECT * from database_version")
+            row = await in_db.fetch_one("SELECT * from database_version")
 
             if row is not None and row[0] != 1:
                 print(f"blockchain database already version {row[0]}\nDone")

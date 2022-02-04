@@ -92,6 +92,29 @@ def upsert_query(table_name: str, primary_key_columns: List[str], columns: List[
     else:
         raise Exception(f"Invalid or unsupported sql dialect: {dialect}")
 
+
+def insert_or_ignore_query(table_name: str, primary_key_columns: List[str], columns: List[str], dialect: str):
+    query_param_columns = map(lambda v: ':' + v, columns)
+
+    if SqlDialect(dialect) == SqlDialect.SQLITE:
+        return f"INSERT INTO {table_name} VALUES({', '.join(query_param_columns)}) ON CONFLICT IGNORE"
+
+    elif SqlDialect(dialect) == SqlDialect.POSTGRES:
+        return (
+             f"INSERT INTO {table_name}({', '.join(columns)}) VALUES({', '.join(query_param_columns)}) "
+             f"ON CONFLICT ({', '.join(primary_key_columns)}) "
+             "DO NOTHING"
+         )
+
+    elif SqlDialect(dialect) == SqlDialect.MYSQL:
+        return (
+             f"INSERT IGNORE INTO {table_name}({', '.join(columns)}) VALUES({', '.join(query_param_columns)})"
+         )
+
+    else:
+        raise Exception(f"Invalid or unsupported sql dialect: {dialect}")
+
+
 def _generate_set_statements(primary_key_columns: List[str], columns: List[str]):
     set_statements = []
     for col in columns:

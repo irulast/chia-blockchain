@@ -82,7 +82,7 @@ async def setup_db(db: DBWrapper):
             "prev_hash text,"
             "height bigint,"
             f"sub_epoch_summary {dialect_utils.data_type('blob', db.db.url.dialect)},"
-            f"is_peak {'tinyint' if db.db.url.dialect == 'sqlite' else 'smallint'})"
+            f"is_peak {dialect_utils.data_type('tinyint', db.db.url.dialect)})"
         )
         await dialect_utils.create_index_if_not_exists(db.db, 'height', 'block_records', ['height'])
         await dialect_utils.create_index_if_not_exists(db.db, 'hh', 'block_records', ['header_hash'])

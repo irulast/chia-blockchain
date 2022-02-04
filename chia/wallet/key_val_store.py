@@ -55,7 +55,4 @@ class KeyValStore:
 
 
     async def remove_object(self, key: str):
-        # TODO
-        cursor = await self.db_connection.execute("DELETE FROM key_val_store where key=?", (key,))
-        await cursor.close()
-        await self.db_connection.commit()
+        await self.db_connection.execute("DELETE FROM key_val_store where key=:key", {"key": key})

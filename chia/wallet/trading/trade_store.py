@@ -14,7 +14,7 @@ from chia.wallet.trade_record import TradeRecord
 from chia.wallet.trading.trade_status import TradeStatus
 
 
-async def migrate_is_my_offer(log: logging.Logger, db_connection: aiosqlite.Connection) -> None:
+async def migrate_is_my_offer(log: logging.Logger, db_connection: Database) -> None:
     """
     Migrate the is_my_offer property contained in the serialized TradeRecord (trade_record column)
     to the is_my_offer column in the trade_records table.
@@ -22,22 +22,21 @@ async def migrate_is_my_offer(log: logging.Logger, db_connection: aiosqlite.Conn
     log.info("Beginning migration of is_my_offer property in trade_records")
 
     start_time = perf_counter()
-    cursor = await db_connection.execute("SELECT trade_record, trade_id from trade_records")
-    rows = await cursor.fetchall()
-    await cursor.close()
+
+    rows = await db_connection.fetch_all("SELECT trade_record, trade_id from trade_records")
 
     updates: List[Tuple[int, str]] = []
     for row in rows:
         record = TradeRecord.from_bytes(row[0])
         is_my_offer = 1 if record.is_my_offer else 0
-        updates.append((is_my_offer, row[1]))
+        updates.append({"is_my_offer": is_my_offer, "trade_id":  row[1]})
 
     try:
-        await db_connection.executemany(
-            "UPDATE trade_records SET is_my_offer=? WHERE trade_id=?",
+        await db_connection.execute_many(
+            "UPDATE trade_records SET is_my_offer=:is_my_offer WHERE trade_id=:trade_id",
             updates,
         )
-    except (aiosqlite.OperationalError, aiosqlite.IntegrityError):
+    except:
         log.exception("Failed to migrate is_my_offer property in trade_records")
         raise
 
@@ -81,16 +80,16 @@ class TradeStore:
                 " confirmed_at_index int,"
                 " created_at_time bigint,"
                 " sent int,"
-                " is_my_offer tinyint)"
+                f" is_my_offer {dialect_utils.data_type('tinyint', self.db_connection.url.dialect)})"
             )
         )
 
         # Attempt to add the is_my_offer column. If successful, migrate is_my_offer to the new column.
         needs_is_my_offer_migration: bool = False
         try:
-            await self.db_connection.execute("ALTER TABLE trade_records ADD COLUMN is_my_offer tinyint")
+            await self.db_connection.execute(f"ALTER TABLE trade_records ADD COLUMN is_my_offer {dialect_utils.data_type('tinyint', self.db_connection.url.dialect)}")
             needs_is_my_offer_migration = True
-        except aiosqlite.OperationalError:
+        except:
             pass  # ignore what is likely Duplicate column error
 
         await dialect_utils.create_index_if_not_exists(self.db_connection, 'trade_confirmed_index', 'trade_records', ['confirmed_at_index'])
@@ -231,9 +230,8 @@ class TradeStore:
         query += "SUM(CASE WHEN is_my_offer=1 THEN 1 ELSE 0 END) AS my_offers, "
         query += "SUM(CASE WHEN is_my_offer=0 THEN 1 ELSE 0 END) AS taken_offers "
         query += "FROM trade_records"
-        cursor = await self.db_connection.execute(query)
-        row = await cursor.fetchone()
-        await cursor.close()
+
+        row = await self.db_connection.fetch_one(query)
 
         if row is None:
             return 0, 0, 0
@@ -380,14 +378,14 @@ class TradeStore:
             raise ValueError(f"No known sort {sort_key}")
 
         query = "SELECT * from trade_records "
-        args = []
+        args = {}
 
         if exclude_my_offers or exclude_taken_offers:
             # We check if exclude_my_offers == exclude_taken_offers earlier and return [] if so
             is_my_offer_val = 0 if exclude_my_offers else 1
-            args.append(is_my_offer_val)
+            args["is_my_offer_val"] = is_my_offer_val
 
-            query += "WHERE is_my_offer=? "
+            query += "WHERE is_my_offer=:is_my_offer_val "
             # Include the additional WHERE status clause if we're filtering out certain statuses
             if where_status_clause is not None:
                 query += "AND " + where_status_clause
@@ -401,13 +399,12 @@ class TradeStore:
         if order_by_clause is not None:
             query += order_by_clause
         # Include the LIMIT clause
-        query += "LIMIT ? OFFSET ?"
+        query += "LIMIT :limit OFFSET :offset"
 
-        args.extend([limit, offset])
+        args["limit"] = limit
+        args["offset"] = offset
 
-        cursor = await self.db_connection.execute(query, tuple(args))
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db_connection.fetch_all(query, args)
 
         records = []
 

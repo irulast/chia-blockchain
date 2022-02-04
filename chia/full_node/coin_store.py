@@ -81,12 +81,11 @@ class CoinStore:
 
         self.coin_record_cache = LRUCache(cache_size)
         return self
-    # TODO
+
     async def num_unspent(self) -> int:
-        async with self.coin_record_db.execute("SELECT COUNT(*) FROM coin_record WHERE spent_index=0") as cursor:
-            row = await cursor.fetchone()
-            if row is not None:
-                return row[0]
+        row = await self.coin_record_db.fetch_one("SELECT COUNT(*) FROM coin_record WHERE spent_index=0")
+        if row is not None:
+            return row[0]
         return 0
 
     def maybe_from_hex(self, field: Any) -> bytes:

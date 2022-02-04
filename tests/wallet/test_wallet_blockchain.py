@@ -2,7 +2,7 @@ import asyncio
 import dataclasses
 from pathlib import Path
 
-import aiosqlite
+from chia.util.db_factory import get_database_connection
 import pytest
 
 from chia.consensus.blockchain import ReceiveBlockResult
@@ -60,7 +60,7 @@ class TestWalletBlockchain:
         if db_filename.exists():
             db_filename.unlink()
 
-        db_connection = await aiosqlite.connect(db_filename)
+        db_connection = await get_database_connection(db_filename)
         db_wrapper = DBWrapper(db_connection)
         store = await KeyValStore.create(db_wrapper)
         chain = await WalletBlockchain.create(

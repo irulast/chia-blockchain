@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import asyncio
-import aiosqlite
 import zstd
 import click
 from pathlib import Path
@@ -14,6 +13,7 @@ from chia.util.config import load_config
 from chia.full_node.full_node import FullNode
 
 from chia.cmds.init_funcs import chia_init
+from chia.util.db_factory import get_database_connection
 
 
 async def run_sync_test(file: Path, db_version=2) -> None:
@@ -37,7 +37,8 @@ async def run_sync_test(file: Path, db_version=2) -> None:
 
             print()
             counter = 0
-            async with aiosqlite.connect(file) as in_db:
+
+            async with await get_database_connection(file) as in_db:
 
                 rows = await in_db.execute("SELECT header_hash, height, block FROM full_blocks ORDER BY height")
 

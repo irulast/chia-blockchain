@@ -279,13 +279,6 @@ class Blockchain(BlockchainInterface):
                         f" rolling back: {traceback.format_exc()} {e}"
                     )
                     raise
-                except Exception as e:
-                    await transaction.rollback()
-                    log.error(
-                        f"Error while adding block {block.header_hash} height {block.height},"
-                        f" rolling back: {traceback.format_exc()} {e}"
-                    )
-                    raise
                 else:
                     await transaction.commit()
 

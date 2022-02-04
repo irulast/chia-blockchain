@@ -9,6 +9,8 @@ from chia.util import dialect_utils
 from chia.wallet.util.wallet_types import WalletType
 from chia.wallet.wallet_coin_record import WalletCoinRecord
 from databases import Database
+from sqlalchemy import bindparam
+from sqlalchemy.sql import text
 import typing
 
 
@@ -86,11 +88,9 @@ class WalletCoinStore:
             return list(filter(lambda cr: cr.coin.name() in coin_names, self.coin_record_cache.values()))
         else:
             as_hexes = [cn.hex() for cn in coin_names]
-            cursor = await self.db_connection.execute(
-                f'SELECT * from coin_record WHERE coin_name in ({"?," * (len(as_hexes) - 1)}?)', tuple(as_hexes)
-            )
-            rows = await cursor.fetchall()
-            await cursor.close()
+            query = text('SELECT * from coin_record WHERE coin_name in :coin_names')
+            query = query.bindparams(bindparam("coin_names", as_hexes, expanding=True))
+            rows = await self.db_connection.fetch_all(query)
 
             return [self.coin_record_from_row(row) for row in rows]
 
@@ -133,9 +133,8 @@ class WalletCoinStore:
                 coin_cache = self.unspent_coin_wallet_cache[coin_record.wallet_id]
                 if coin_name in coin_cache:
                     coin_cache.pop(coin_record.coin.name())
-
-        c = await self.db_connection.execute("DELETE FROM coin_record WHERE coin_name=?", (coin_name.hex(),))
-        await c.close()
+                    
+        await self.db_connection.execute("DELETE FROM coin_record WHERE coin_name=:coin_name", {"coin_name": coin_name.hex()})
 
     # Update coin_record to be spent in DB
     async def set_spent(self, coin_name: bytes32, height: uint32) -> WalletCoinRecord:
@@ -219,15 +218,13 @@ class WalletCoinStore:
 
     async def get_coins_to_check(self, check_height) -> Set[WalletCoinRecord]:
         """Returns set of all CoinRecords."""
-        cursor = await self.db_connection.execute(
-            "SELECT * from coin_record where spent_height=0 or spent_height>? or confirmed_height>?",
-            (
-                check_height,
-                check_height,
-            ),
+        rows = await self.db_connection.fetch_all(
+            "SELECT * from coin_record where spent_height=0 or spent_height>:min_spent_height or confirmed_height>:min_confirmed_height",
+            {
+                "min_spent_height": check_height,
+                "min_confirmed_height": check_height,
+            }
         )
-        rows = await cursor.fetchall()
-        await cursor.close()
 
         return set(self.coin_record_from_row(row) for row in rows)
 
@@ -241,11 +238,9 @@ class WalletCoinStore:
     # Checks DB and DiffStores for CoinRecords with parent_coin_info and returns them
     async def get_coin_records_by_parent_id(self, parent_coin_info: bytes32) -> List[WalletCoinRecord]:
         """Returns a list of all coin records with the given parent id"""
-        cursor = await self.db_connection.execute(
-            "SELECT * from coin_record WHERE coin_parent=?", (parent_coin_info.hex(),)
+        rows = await self.db_connection.fetch_all(
+            "SELECT * from coin_record WHERE coin_parent=:coin_parent", {"coin_parent": parent_coin_info.hex()}
         )
-        rows = await cursor.fetchall()
-        await cursor.close()
 
         return [self.coin_record_from_row(row) for row in rows]
 

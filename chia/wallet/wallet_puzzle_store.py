@@ -232,12 +232,9 @@ class WalletPuzzleStore:
         Returns derivation record for the given pubkey.
         Returns None if not present.
         """
-
-        cursor = await self.db_connection.execute(
-            "SELECT * from derivation_paths WHERE pubkey=?", (bytes(pubkey).hex(),)
+        row = await self.db_connection.fetch_one(
+            "SELECT * from derivation_paths WHERE pubkey=:pubkey", {"pubkey": bytes(pubkey).hex()}
         )
-        row = await cursor.fetchone()
-        await cursor.close()
 
         if row is not None:
             return self.row_to_record(row)
@@ -263,11 +260,9 @@ class WalletPuzzleStore:
         Returns the derivation path for the puzzle_hash.
         Returns None if not present.
         """
-        cursor = await self.db_connection.execute(
-            "SELECT * from derivation_paths WHERE puzzle_hash=?", (puzzle_hash.hex(),)
+        row = await self.db_connection.fetch_one(
+            "SELECT * from derivation_paths WHERE puzzle_hash=:puzzle_hash", {"puzzle_hash": puzzle_hash.hex()}
         )
-        row = await cursor.fetchone()
-        await cursor.close()
 
         if row is not None and row[0] is not None:
             return self.row_to_record(row)

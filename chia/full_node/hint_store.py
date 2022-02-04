@@ -18,14 +18,12 @@ class HintStore:
         self.db_wrapper = db_wrapper
 
         if self.db_wrapper.db_version == 2:
-            # TODO: handle blob key (mysql)
             await self.db_wrapper.db.execute(
-                "CREATE TABLE IF NOT EXISTS hints(coin_id blob, hint blob, UNIQUE (coin_id, hint))"
+                f"CREATE TABLE IF NOT EXISTS hints(coin_id {dialect_utils.data_type('blob-as-index', self.coin_record_db.url.dialect)}, hint {dialect_utils.data_type('blob-as-index', self.coin_record_db.url.dialect)}, UNIQUE (coin_id, hint))"
             )
         else:
-            # TODO: handle autoincrement use
             await self.db_wrapper.db.execute(
-                "CREATE TABLE IF NOT EXISTS hints(id INTEGER PRIMARY KEY AUTOINCREMENT, coin_id blob, hint blob)"
+                f"CREATE TABLE IF NOT EXISTS hints(id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.coin_record_db.url.dialect)}, coin_id {dialect_utils.data_type('blob', self.coin_record_db.url.dialect)}, hint {dialect_utils.data_type('blob', self.coin_record_db.url.dialect)})"
             )
         await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'hint_index', 'hints', ['hint'])
         return self
@@ -38,23 +36,21 @@ class HintStore:
         return coin_ids
 
     async def add_hints(self, coin_hint_list: List[Tuple[bytes32, bytes]]) -> None:
-        if self.db_wrapper.db_version == 2:
-            # TODO: on conflict clause
-            await self.coin_record_db.execute_many(
-                "INSERT INTO hints(coin_id, hint) VALUES(:coin_id, :hint) ON CONFLICT DO NOTHING",
-                map(lambda coin_hint: {"coin_id": coin_hint[0], "hint": coin_hint[1]}, coin_hint_list),
-            )
-        else:
-            # TODO
-            cursor = await self.db_wrapper.db.executemany(
-                "INSERT INTO hints VALUES(?, ?, ?)",
-                [(None,) + record for record in coin_hint_list],
-            )
+        coin_hint_list_db = list(map(lambda coin_hint: {"coin_id": coin_hint[0], "hint": coin_hint[1]}, coin_hint_list))
+        if len(coin_hint_list) > 0:
+            if self.db_wrapper.db_version == 2:
+                await self.coin_record_db.execute_many(
+                    dialect_utils.insert_or_ignore_query('hints', ['coin_id'], coin_hint_list_db[0].keys(), self.coin_record_db.url.dialect)
+                    coin_hint_list_db,
+                )
+            else:
+                await self.db_wrapper.db.execute_many(
+                    "INSERT INTO hints(coin_id, hint) VALUES(:coin_id, :hint)",
+                    coin_hint_list_db,
+                )
 
     async def count_hints(self) -> int:
-        # TODO
-        async with self.db_wrapper.db.execute("select count(*) from hints") as cursor:
-            row = await cursor.fetchone()
+        row = await self.db_wrapper.db.fetch_one("select count(*) from hints")
 
         assert row is not None
 

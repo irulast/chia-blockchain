@@ -143,14 +143,14 @@ class BlockStore:
             block_bytes = bytes(block)
 
         self.block_cache.put(header_hash, block)
-        # TODO
+
         await self.db.execute(
-            "UPDATE full_blocks SET block=?,is_fully_compactified=? WHERE header_hash=?",
-            (
-                block_bytes,
-                int(block.is_fully_compactified()),
-                self.maybe_to_hex(header_hash),
-            ),
+            "UPDATE full_blocks SET block=:block,is_fully_compactified=:is_fully_compactified WHERE header_hash=:header_hash",
+            {
+                "block": block_bytes,
+                "is_fully_compactified": int(block.is_fully_compactified()),
+                "header_hash": self.maybe_to_hex(header_hash),
+            },
         )
 
     async def add_full_block(self, header_hash: bytes32, block: FullBlock, block_record: BlockRecord) -> None:
@@ -499,10 +499,9 @@ class BlockStore:
         heights = [int(row[0]) for row in rows]
 
         return heights
-    # TODO
+
     async def count_compactified_blocks(self) -> int:
-        async with self.db.execute("select count(*) from full_blocks where is_fully_compactified=1") as cursor:
-            row = await cursor.fetchone()
+        row = await self.db.fetch_one("select count(*) from full_blocks where is_fully_compactified=1")
 
         assert row is not None
 
@@ -510,8 +509,7 @@ class BlockStore:
         return int(count)
 
     async def count_uncompactified_blocks(self) -> int:
-        async with self.db.execute("select count(*) from full_blocks where is_fully_compactified=0") as cursor:
-            row = await cursor.fetchone()
+        row = await self.db.execute("select count(*) from full_blocks where is_fully_compactified=0")
 
         assert row is not None
 

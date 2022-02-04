@@ -134,9 +134,8 @@ class WalletTransactionStore:
                 tx_cache = self.unconfirmed_for_wallet[tx_record.wallet_id]
                 if tx_id in tx_cache:
                     tx_cache.pop(tx_id)
-        # TODO
-        c = await self.db_connection.execute("DELETE FROM transaction_record WHERE bundle_id=?", (tx_id,))
-        await c.close()
+
+        await self.db_connection.execute("DELETE FROM transaction_record WHERE bundle_id=:bundle_id", {"bundle_id": tx_id})
 
     async def set_confirmed(self, tx_id: bytes32, height: uint32):
         """
@@ -420,10 +419,7 @@ class WalletTransactionStore:
         return records
 
     async def get_transactions_by_trade_id(self, trade_id: bytes32) -> List[TransactionRecord]:
-        # TODO
-        cursor = await self.db_connection.execute("SELECT * from transaction_record WHERE trade_id=?", (trade_id,))
-        rows = await cursor.fetchall()
-        await cursor.close()
+        rows = await self.db_connection.fetch_all("SELECT * from transaction_record WHERE trade_id=:trade_id", {"trade_id": trade_id})
         records = []
 
         for row in rows:
@@ -441,7 +437,7 @@ class WalletTransactionStore:
         for tx in to_delete:
             self.tx_record_cache.pop(tx.name)
         self.tx_submitted = {}
-        await self.db_connection.execute("DELETE FROM transaction_record WHERE confirmed_at_height>:min_confirmed_at_height", {"min_confirmed_at_height": height})
+        await self.db_connection.execute("DELETE FROM transaction_record WHERE confirmed_at_height>:min_confirmed_at_height", {"min_confirmed_at_height": int(height)})
 
     async def delete_unconfirmed_transactions(self, wallet_id: int):
         await self.db_connection.execute(

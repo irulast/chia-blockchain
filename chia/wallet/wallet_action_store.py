@@ -45,7 +45,6 @@ class WalletActionStore:
 
         await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_type', 'action_queue', ['wallet_type'])
 
-        # await self.db_connection.commit()
         return self
 
     async def _clear_database(self):
