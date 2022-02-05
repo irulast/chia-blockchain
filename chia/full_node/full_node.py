@@ -2189,7 +2189,6 @@ class FullNode:
                 await self.block_store.replace_proof(header_hash, new_block)
                 return True
             except BaseException as e:
-                await self.block_store.db_wrapper.rollback_transaction()
                 self.log.error(
                     f"_replace_proof error while adding block {block.header_hash} height {block.height},"
                     f" rolling back: {e} {traceback.format_exc()}"

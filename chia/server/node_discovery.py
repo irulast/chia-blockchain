@@ -221,6 +221,7 @@ class FullNodeDiscovery:
                 return
             for rdtype in ["A", "AAAA"]:
                 peers: List[TimestampedPeerInfo] = []
+                self.log.info(f"Introducer dns address: {dns_address}")
                 result = await self.resolver.resolve(qname=dns_address, rdtype=rdtype, lifetime=30)
                 for ip in result:
                     peers.append(

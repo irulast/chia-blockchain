@@ -1120,7 +1120,6 @@ class WalletStateManager:
 
         reorged: List[TransactionRecord] = await self.tx_store.get_transaction_above(height)
         await self.tx_store.rollback_to_block(height)
-        await self.coin_store.db_wrapper.commit_transaction()
         for record in reorged:
             if record.type in [
                 TransactionType.OUTGOING_TX,

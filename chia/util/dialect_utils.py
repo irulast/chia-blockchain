@@ -68,7 +68,7 @@ def reserved_word(word: str, dialect: str):
 
 
 def upsert_query(table_name: str, primary_key_columns: List[str], columns: List[str], dialect: str):
-    query_param_columns = map(lambda v: ':' + v, columns)
+    query_param_columns = list(map(lambda v: ':' + v, columns))
     
     if SqlDialect(dialect) == SqlDialect.SQLITE:
         return f"INSERT OR REPLACE INTO {table_name} VALUES({', '.join(query_param_columns)})"
@@ -94,7 +94,7 @@ def upsert_query(table_name: str, primary_key_columns: List[str], columns: List[
 
 
 def insert_or_ignore_query(table_name: str, primary_key_columns: List[str], columns: List[str], dialect: str):
-    query_param_columns = map(lambda v: ':' + v, columns)
+    query_param_columns = list(map(lambda v: ':' + v, columns))
 
     if SqlDialect(dialect) == SqlDialect.SQLITE:
         return f"INSERT INTO {table_name} VALUES({', '.join(query_param_columns)}) ON CONFLICT IGNORE"

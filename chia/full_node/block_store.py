@@ -129,7 +129,7 @@ class BlockStore:
     async def set_in_chain(self, header_hashes: List[bytes32]) -> None:
         if self.db_wrapper.db_version == 2:
             await self.db.execute_many(
-                "UPDATE full_blocks SET in_main_chain=1 WHERE header_hash=:header_hash", map(lambda header_hash: {"header_hash": header_hash}, header_hashes)
+                "UPDATE full_blocks SET in_main_chain=1 WHERE header_hash=:header_hash", list(map(lambda header_hash: {"header_hash": header_hash}, header_hashes))
             )
 
     async def replace_proof(self, header_hash: bytes32, block: FullBlock) -> None:
@@ -283,7 +283,7 @@ class BlockStore:
         if len(heights) == 0:
             return []
 
-        heights_db = map(lambda height: int(height), heights)
+        heights_db = list(map(lambda height: int(height), heights))
         query = text('SELECT block from full_blocks WHERE height in :heights')
         query = query.bindparams(bindparam("heights", heights_db, expanding=True))
         rows = await self.db.fetch_all(query)

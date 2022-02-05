@@ -1,3 +1,5 @@
+import logging
+import traceback
 from typing import Any
 
 from databases import Database
@@ -6,6 +8,7 @@ from chia.util.db_wrapper import DBWrapper
 from chia.util import dialect_utils
 from chia.util.streamable import Streamable
 
+log = logging.getLogger(__name__)
 
 class KeyValStore:
     """
@@ -21,7 +24,7 @@ class KeyValStore:
         self.db_wrapper = db_wrapper
         self.db_connection = db_wrapper.db
         await self.db_connection.execute(
-            f"CREATE TABLE IF NOT EXISTS key_val_store({dialect_utils.reserved_word('key', self.db_connection.url.dialect)} {dialect_utils.data_type('blob-as-index', self.db_connection.url.dialect)} PRIMARY KEY, value text)"
+            f"CREATE TABLE IF NOT EXISTS key_val_store({dialect_utils.reserved_word('key', self.db_connection.url.dialect)} {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY, value {dialect_utils.data_type('blob', self.db_connection.url.dialect)})"
         )
 
         await dialect_utils.create_index_if_not_exists(self.db_connection, 'name', 'key_val_store', [dialect_utils.reserved_word('key', self.db_connection.url.dialect)])
@@ -46,12 +49,15 @@ class KeyValStore:
         """
         Adds object to key val store
         """
-        async with self.db_wrapper.lock:
-            row_to_insert = {"key": key, "value": bytes(obj)}
-            await self.db_connection.execute(
-                dialect_utils.upsert_query('key_val_store', ['key'], row_to_insert.keys(), self.db_connection.url.dialect),
-                row_to_insert
-            )
+        try:
+            async with self.db_wrapper.lock:
+                row_to_insert = {"key": key, "value": bytes(obj)}
+                await self.db_connection.execute(
+                    dialect_utils.upsert_query('key_val_store', ['key'], row_to_insert.keys(), self.db_connection.url.dialect),
+                    row_to_insert
+                )
+        except Exception as e:
+            log.error(e)
 
 
     async def remove_object(self, key: str):

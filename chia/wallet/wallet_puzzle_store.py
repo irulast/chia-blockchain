@@ -44,7 +44,7 @@ class WalletPuzzleStore:
                 f" puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"
                 " wallet_type int,"
                 " wallet_id int,"
-                f" used {dialect_utils.data_type('tinyint', self.db_wrapper.db.url.dialect)})"
+                f" used {dialect_utils.data_type('tinyint', self.db_wrapper.db.url.dialect)},"
                 f" hardened {dialect_utils.data_type('tinyint', self.db_wrapper.db.url.dialect)})"
             )
         )

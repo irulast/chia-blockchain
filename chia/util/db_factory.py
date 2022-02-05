@@ -22,6 +22,7 @@ async def _create_database_from_env_var(default_db_path):
     connection_string = f"{db_root}{db_name}"
 
     database = DatabaseWrapper(connection_string)
+    log.error(connection_string)
     try:
         await database.connect()
         return database

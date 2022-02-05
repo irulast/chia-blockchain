@@ -77,7 +77,6 @@ class TestDbUpgrade:
                 bc = await Blockchain.create(
                     coin_store1, block_store1, test_constants, hint_store1, Path("."), reserved_cores=0
                 )
-                await db_wrapper1.commit_transaction()
 
                 for block in blocks:
                     await _validate_and_add_block(bc, block)
