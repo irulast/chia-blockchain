@@ -221,8 +221,8 @@ class WalletCoinStore:
         rows = await self.db_connection.fetch_all(
             "SELECT * from coin_record where spent_height=0 or spent_height>:min_spent_height or confirmed_height>:min_confirmed_height",
             {
-                "min_spent_height": check_height,
-                "min_confirmed_height": check_height,
+                "min_spent_height": int(check_height),
+                "min_confirmed_height": int(check_height),
             }
         )
 

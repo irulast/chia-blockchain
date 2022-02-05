@@ -1,8 +1,11 @@
 from enum import Enum
+import logging
 from typing import List, Optional
 
 from databases import Database
 import pymysql
+
+log = logging.getLogger(__name__)
 
 class SqlDialect(Enum):
     SQLITE = 'sqlite'
@@ -74,7 +77,7 @@ def upsert_query(table_name: str, primary_key_columns: List[str], columns: List[
         return f"INSERT OR REPLACE INTO {table_name} VALUES({', '.join(query_param_columns)})"
 
     elif SqlDialect(dialect) == SqlDialect.POSTGRES:
-        set_statements = _generate_set_statements(primary_key_columns, columns)
+        set_statements = _generate_set_statements(primary_key_columns, columns, dialect)
         return (
              f"INSERT INTO {table_name}({', '.join(columns)}) VALUES({', '.join(query_param_columns)}) "
              f"ON CONFLICT ({', '.join(primary_key_columns)}) "
@@ -82,9 +85,10 @@ def upsert_query(table_name: str, primary_key_columns: List[str], columns: List[
          )
 
     elif SqlDialect(dialect) == SqlDialect.MYSQL:
-        set_statements = _generate_set_statements(primary_key_columns, columns)
+        set_statements = _generate_set_statements(primary_key_columns, columns, dialect)
+        cols = list(map(lambda c: f"`{c}`", columns))
         return (
-             f"INSERT INTO {table_name}({', '.join(columns)}) VALUES({', '.join(query_param_columns)}) "
+             f"INSERT INTO {table_name}({', '.join(cols)}) VALUES({', '.join(query_param_columns)}) "
              "ON DUPLICATE KEY UPDATE "
              f"{', '.join(set_statements)}"
          )
@@ -97,7 +101,7 @@ def insert_or_ignore_query(table_name: str, primary_key_columns: List[str], colu
     query_param_columns = list(map(lambda v: ':' + v, columns))
 
     if SqlDialect(dialect) == SqlDialect.SQLITE:
-        return f"INSERT INTO {table_name} VALUES({', '.join(query_param_columns)}) ON CONFLICT IGNORE"
+        return f"INSERT INTO {table_name} VALUES({', '.join(query_param_columns)}) ON CONFLICT DO NOTHING"
 
     elif SqlDialect(dialect) == SqlDialect.POSTGRES:
         return (
@@ -115,11 +119,14 @@ def insert_or_ignore_query(table_name: str, primary_key_columns: List[str], colu
         raise Exception(f"Invalid or unsupported sql dialect: {dialect}")
 
 
-def _generate_set_statements(primary_key_columns: List[str], columns: List[str]):
+def _generate_set_statements(primary_key_columns: List[str], columns: List[str], dialect: str):
     set_statements = []
     for col in columns:
         if col not in primary_key_columns:
-            set_statements.append(f"{col} = :{col}")
+            if(SqlDialect(dialect) == SqlDialect.MYSQL):
+                set_statements.append(f"`{col}` = :{col}")
+            else:
+                set_statements.append(f"{col} = :{col}")
     return set_statements
 
 

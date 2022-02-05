@@ -137,7 +137,7 @@ async def convert_v1_to_v2(in_path: Path, out_path: Path) -> None:
             )
             full_block_rows_map = {}
             for full_block_row in (await in_db.fetch_all("SELECT header_hash, height, is_fully_compactified, block FROM full_blocks ORDER BY height DESC")):
-                full_block_rows_map[full_block_row[0]] = full_block_row
+                full_block_rows_map[bytes.fromhex(full_block_row[0])] = full_block_row
             
             for block_record_row in block_record_rows:
 
@@ -206,7 +206,7 @@ async def convert_v1_to_v2(in_path: Path, out_path: Path) -> None:
             ses_start_time = time()
             rows = await in_db.fetch_all("SELECT ses_block_hash, challenge_segments FROM sub_epoch_segments_v3")
             count = 0
-            async for row in rows:
+            for row in rows:
                 block_hash = bytes32.fromhex(row[0])
                 ses = row[1]
                 ses_values.append({"ses_block_hash": block_hash, "challenge_segments":  ses})
@@ -232,9 +232,9 @@ async def convert_v1_to_v2(in_path: Path, out_path: Path) -> None:
             hint_start_time = time()
             hint_values = []
             await out_db.execute(f"CREATE TABLE hints(coin_id {dialect_utils.data_type('blob-as-index', out_db.url.dialect)}, hint {dialect_utils.data_type('blob-as-index', out_db.url.dialect)}, UNIQUE (coin_id, hint))")
-            rows = await in_db.execute("SELECT coin_id, hint FROM hints")
+            rows = await in_db.fetch_all("SELECT coin_id, hint FROM hints")
             count = 0
-            async for row in rows:
+            for row in rows:
                 hint_values.append({"coin_id": row[0], "hint":  row[1]})
                 commit_in -= 1
                 if commit_in == 0:
@@ -275,7 +275,7 @@ async def convert_v1_to_v2(in_path: Path, out_path: Path) -> None:
                 {"peak_height": int(peak_height)},
             )
             count = 0
-            async for row in rows:
+            for row in rows:
                 spent_index = row[2]
 
                 # in order to convert a consistent snapshot of the
@@ -292,7 +292,7 @@ async def convert_v1_to_v2(in_path: Path, out_path: Path) -> None:
                         "coinbase": int(row[3]),
                         "puzzle_hash": bytes.fromhex(row[4]),
                         "coin_parent": bytes.fromhex(row[5]),
-                        "amount": int(row[6]),
+                        "amount": row[6],
                         "timestamp": int(row[7]),
                     }
                 )

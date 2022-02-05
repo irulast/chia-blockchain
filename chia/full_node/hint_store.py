@@ -23,13 +23,13 @@ class HintStore:
             )
         else:
             await self.db_wrapper.db.execute(
-                f"CREATE TABLE IF NOT EXISTS hints(id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_wrapper.db.url.dialect)}, coin_id {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)}, hint {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)})"
+                f"CREATE TABLE IF NOT EXISTS hints(id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_wrapper.db.url.dialect)}, coin_id {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)}, hint {dialect_utils.data_type('blob-as-index', self.db_wrapper.db.url.dialect)})"
             )
         await dialect_utils.create_index_if_not_exists(self.db_wrapper.db, 'hint_index', 'hints', ['hint'])
         return self
 
     async def get_coin_ids(self, hint: bytes) -> List[bytes32]:
-        rows = await self.db_wrapper.db.fetch_all("SELECT * from hints WHERE hint=:hint", {"hint": hint})
+        rows = await self.db_wrapper.db.fetch_all("SELECT coin_id from hints WHERE hint=:hint", {"hint": hint})
         coin_ids = []
         for row in rows:
             coin_ids.append(row[0])

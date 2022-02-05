@@ -53,7 +53,7 @@ class KeyValStore:
             async with self.db_wrapper.lock:
                 row_to_insert = {"key": key, "value": bytes(obj)}
                 await self.db_connection.execute(
-                    dialect_utils.upsert_query('key_val_store', ['key'], row_to_insert.keys(), self.db_connection.url.dialect),
+                    dialect_utils.upsert_query("key_val_store", [dialect_utils.reserved_word('key', self.db_connection.url.dialect)], row_to_insert.keys(), self.db_connection.url.dialect),
                     row_to_insert
                 )
         except Exception as e:
@@ -61,4 +61,4 @@ class KeyValStore:
 
 
     async def remove_object(self, key: str):
-        await self.db_connection.execute("DELETE FROM key_val_store where key=:key", {"key": key})
+        await self.db_connection.execute(f"DELETE FROM key_val_store where {dialect_utils.reserved_word('key', self.db_connection.url.dialect)}=:key", {"key": key})
