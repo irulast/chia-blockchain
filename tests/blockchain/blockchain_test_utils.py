@@ -15,7 +15,7 @@ async def check_block_store_invariant(bc: Blockchain):
 
     in_chain = set()
     max_height = -1
-    rows = await db_wrapper.db.execute("SELECT height, in_main_chain FROM full_blocks")
+    rows = await db_wrapper.db.fetch_all("SELECT height, in_main_chain FROM full_blocks")
     for row in rows:
         height = row[0]
 
