@@ -173,9 +173,9 @@ class BlockStore:
                 "block": self.compress(block),
                 "block_record": bytes(block_record),
             }
-            # TODO: change to INSERT OR IGNORE
+
             await self.db.execute(
-                dialect_utils.upsert_query("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
+                dialect_utils.insert_or_ignore_query("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
                 row_to_insert
             )
 
@@ -187,12 +187,12 @@ class BlockStore:
                 "is_fully_compactified": int(block.is_fully_compactified()),
                 "block": bytes(block),
             }
-            # TODO: change to INSERT OR IGNORE
+
             await self.db.execute(
-                dialect_utils.upsert_query("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
+                dialect_utils.insert_or_ignore_query("full_blocks", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
                 row_to_insert
             )
-            # TODO: change to INSERT OR IGNORE
+
             row_to_insert = {
                 "header_hash": header_hash.hex(),
                 "prev_hash": block.prev_header_hash.hex(),
@@ -206,7 +206,7 @@ class BlockStore:
                 "is_block": block.is_transaction_block(),
             }
             await self.db.execute(
-                dialect_utils.upsert_query("block_records", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
+                dialect_utils.insert_or_ignore_query("block_records", ["header_hash"], row_to_insert.keys(), self.db.url.dialect),
                 row_to_insert
             )
 
@@ -509,7 +509,7 @@ class BlockStore:
         return int(count)
 
     async def count_uncompactified_blocks(self) -> int:
-        row = await self.db.execute("select count(*) from full_blocks where is_fully_compactified=0")
+        row = await self.db.fetch_one("select count(*) from full_blocks where is_fully_compactified=0")
 
         assert row is not None
 

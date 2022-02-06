@@ -121,7 +121,7 @@ class WalletPuzzleStore:
         else:
             hard = 0
         row = await self.db_connection.fetch_one(
-            "SELECT * FROM derivation_paths WHERE derivation_index=:derivation_index and wallet_id=:wallet_id;",
+            "SELECT * FROM derivation_paths WHERE derivation_index=:derivation_index and wallet_id=:wallet_id and hardened=:hardened;",
             {
                 "derivation_index": int(index),
                 "wallet_id": int(wallet_id),

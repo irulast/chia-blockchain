@@ -54,5 +54,5 @@ class TestWalletKeyValStore:
                 await store.get_object("a", HeaderBlock)
 
         finally:
-            await db_connection.close()
+            await db_connection.disconnect()
             db_filename.unlink()

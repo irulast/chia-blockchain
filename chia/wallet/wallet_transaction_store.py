@@ -112,7 +112,7 @@ class WalletTransactionStore:
                 "confirmed": int(record.confirmed),
                 "sent": int(record.sent),
                 "wallet_id": int(record.wallet_id),
-                "trade_id": int(record.trade_id),
+                "trade_id": record.trade_id,
                 "type": int(record.type),
             }
             await self.db_connection.execute(
@@ -251,7 +251,7 @@ class WalletTransactionStore:
             return self.tx_record_cache[tx_id]
 
         # NOTE: bundle_id is being stored as bytes, not hex
-        row = await self.db_connection.fetch_one("SELECT * from transaction_record WHERE bundle_id=:bundle_id", {"bundle_id": int(tx_id)})
+        row = await self.db_connection.fetch_one("SELECT * from transaction_record WHERE bundle_id=:bundle_id", {"bundle_id": tx_id})
         if row is not None:
             record = TransactionRecord.from_bytes(row[0])
             return record

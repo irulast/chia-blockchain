@@ -2185,7 +2185,6 @@ class FullNode:
             return False
         async with self.db_wrapper.lock:
             try:
-                # TODO: maybe use transaction here? they want it
                 await self.block_store.replace_proof(header_hash, new_block)
                 return True
             except BaseException as e:

@@ -42,8 +42,10 @@ class WalletInterestedStore:
         if not in_transaction:
             await self.db_wrapper.lock.acquire()
         try:
+            row_to_insert = {"coin_name": coin_id.hex()}
             await self.db_connection.execute(
-                "INSERT INTO interested_coins VALUES (:coin_id)", {"coin_id": coin_id.hex()}
+                dialect_utils.upsert_query('interested_coins', ['coin_name'], row_to_insert.keys(), self.db_connection.url.dialect),
+                row_to_insert
             )
         finally:
             if not in_transaction:
