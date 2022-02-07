@@ -92,14 +92,16 @@ async def main(file: Path, mempool_mode: bool):
         block_program_args = bytearray(b"\xff")
 
         num_refs = 0
+        start_time = time()
         for h in block.transactions_generator_ref_list:
             row = await c.fetch_one("SELECT block FROM full_blocks WHERE header_hash=:header_hash", {"header_hash": height_to_hash[h]})
-            ref_block = FullBlock.from_bytes(ref.fetchone()[0])
+            ref_block = FullBlock.from_bytes(row[0])
             block_program_args += b"\xff"
             block_program_args += Program.to(bytes(ref_block.transactions_generator)).as_bin()
             num_refs += 1
             await c.disconnect()
         ref_lookup_time = time() - start_time
+
         block_program_args += b"\x80\x80"
 
         if mempool_mode:
