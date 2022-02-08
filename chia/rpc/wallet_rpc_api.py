@@ -783,17 +783,12 @@ class WalletRpcApi:
         async with self.service.wallet_state_manager.lock:
             async with self.service.wallet_state_manager.tx_store.db_wrapper.lock:
                 async with self.service.wallet_state_manager.tx_store.db_wrapper.db.connection() as connection:
-                    transaction = await connection.transaction()
-                    try:
+                    async with connection.transaction():
                         await self.service.wallet_state_manager.tx_store.delete_unconfirmed_transactions(wallet_id)
                         if self.service.wallet_state_manager.wallets[wallet_id].type() == WalletType.POOLING_WALLET.value:
                             self.service.wallet_state_manager.wallets[wallet_id].target_state = None
                         # Update the cache
                         await self.service.wallet_state_manager.tx_store.rebuild_tx_cache()
-                    except:
-                        await transaction.rollback()
-                    else:
-                        await transaction.commit()
                         return {}
 
     ##########################################################################################

@@ -164,19 +164,6 @@ class FullNode:
             self.log.info(f"opening blockchain DB: synchronous={db_sync}")
             await self.connection.execute("pragma synchronous={}".format(db_sync))
 
-            # TODO
-            # maybe used databases backend connection
-            # if self.config.get("log_sqlite_cmds", False):
-            #     sql_log_path = path_from_root(self.root_path, "log/sql.log")
-            #     self.log.info(f"logging SQL commands to {sql_log_path}")
-
-            #     def sql_trace_callback(req: str):
-            #         timestamp = datetime.now().strftime("%H:%M:%S.%f")
-            #         log = open(sql_log_path, "a")
-            #         log.write(timestamp + " " + req + "\n")
-            #         log.close()
-
-            #     await self.connection.set_trace_callback(sql_trace_callback)
 
         db_version: int = await lookup_db_version(self.connection)
 
@@ -961,7 +948,6 @@ class FullNode:
             assert validate_task.done()
             fetch_task.cancel()  # no need to cancel validate_task, if we end up here validate_task is already done
             self.log.error(f"sync from fork point failed err: {e}")
-            self.log.error(traceback.format_exc())
 
     async def send_peak_to_wallets(self):
         peak = self.blockchain.get_peak()

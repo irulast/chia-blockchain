@@ -1,5 +1,4 @@
 from typing import List, Tuple
-from databases import Database
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.util.db_wrapper import DBWrapper
 from chia.util import dialect_utils
@@ -9,7 +8,6 @@ log = logging.getLogger(__name__)
 
 
 class HintStore:
-    coin_record_db: Database
     db_wrapper: DBWrapper
 
     @classmethod
@@ -17,15 +15,17 @@ class HintStore:
         self = cls()
         self.db_wrapper = db_wrapper
 
-        if self.db_wrapper.db_version == 2:
-            await self.db_wrapper.db.execute(
-                f"CREATE TABLE IF NOT EXISTS hints(coin_id {dialect_utils.data_type('blob-as-index', self.db_wrapper.db.url.dialect)}, hint {dialect_utils.data_type('blob-as-index', self.db_wrapper.db.url.dialect)}, UNIQUE (coin_id, hint))"
-            )
-        else:
-            await self.db_wrapper.db.execute(
-                f"CREATE TABLE IF NOT EXISTS hints(id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_wrapper.db.url.dialect)}, coin_id {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)}, hint {dialect_utils.data_type('blob-as-index', self.db_wrapper.db.url.dialect)})"
-            )
-        await dialect_utils.create_index_if_not_exists(self.db_wrapper.db, 'hint_index', 'hints', ['hint'])
+        async with self.db_wrapper.db.connection() as connection:
+            async with connection.transaction():
+                if self.db_wrapper.db_version == 2:
+                    await self.db_wrapper.db.execute(
+                        f"CREATE TABLE IF NOT EXISTS hints(coin_id {dialect_utils.data_type('blob-as-index', self.db_wrapper.db.url.dialect)}, hint {dialect_utils.data_type('blob-as-index', self.db_wrapper.db.url.dialect)}, UNIQUE (coin_id, hint))"
+                    )
+                else:
+                    await self.db_wrapper.db.execute(
+                        f"CREATE TABLE IF NOT EXISTS hints(id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_wrapper.db.url.dialect)}, coin_id {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)}, hint {dialect_utils.data_type('blob-as-index', self.db_wrapper.db.url.dialect)})"
+                    )
+                await dialect_utils.create_index_if_not_exists(self.db_wrapper.db, 'hint_index', 'hints', ['hint'])
         return self
 
     async def get_coin_ids(self, hint: bytes) -> List[bytes32]:

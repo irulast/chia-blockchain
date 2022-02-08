@@ -36,29 +36,32 @@ class WalletPuzzleStore:
 
         self.db_wrapper = db_wrapper
         self.db_connection = self.db_wrapper.db
-        await self.db_connection.execute(
-            (
-                "CREATE TABLE IF NOT EXISTS derivation_paths("
-                "derivation_index int,"
-                f" pubkey {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
-                f" puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"
-                " wallet_type int,"
-                " wallet_id int,"
-                f" used {dialect_utils.data_type('tinyint', self.db_wrapper.db.url.dialect)},"
-                f" hardened {dialect_utils.data_type('tinyint', self.db_wrapper.db.url.dialect)})"
-            )
-        )
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'derivation_index_index', 'derivation_paths', ['derivation_index'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'ph', 'derivation_paths', ['puzzle_hash'])
+        async with self.db_connection.connection() as connection:
+            async with connection.transaction():
+                await self.db_connection.execute(
+                    (
+                        "CREATE TABLE IF NOT EXISTS derivation_paths("
+                        "derivation_index int,"
+                        f" pubkey {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
+                        f" puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"
+                        " wallet_type int,"
+                        " wallet_id int,"
+                        f" used {dialect_utils.data_type('tinyint', self.db_wrapper.db.url.dialect)},"
+                        f" hardened {dialect_utils.data_type('tinyint', self.db_wrapper.db.url.dialect)})"
+                    )
+                )
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'derivation_index_index', 'derivation_paths', ['derivation_index'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'pubkey', 'derivation_paths', ['pubkey'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'ph', 'derivation_paths', ['puzzle_hash'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_type', 'derivation_paths', ['wallet_type'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'pubkey', 'derivation_paths', ['pubkey'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_id', 'derivation_paths', ['wallet_id'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_type', 'derivation_paths', ['wallet_type'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'used', 'derivation_paths', ['used'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_id', 'derivation_paths', ['wallet_id'])
+
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'used', 'derivation_paths', ['used'])
 
         # Lock
         self.lock = asyncio.Lock()  # external

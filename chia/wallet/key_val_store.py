@@ -23,12 +23,14 @@ class KeyValStore:
         self = cls()
         self.db_wrapper = db_wrapper
         self.db_connection = db_wrapper.db
-        await self.db_connection.execute(
-            f"CREATE TABLE IF NOT EXISTS key_val_store({dialect_utils.reserved_word('key', self.db_connection.url.dialect)} {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY, value {dialect_utils.data_type('blob', self.db_connection.url.dialect)})"
-        )
+        async with self.db_connection.connection() as connection:
+            async with connection.transaction():
+                await self.db_connection.execute(
+                    f"CREATE TABLE IF NOT EXISTS key_val_store({dialect_utils.reserved_word('key', self.db_connection.url.dialect)} {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY, value {dialect_utils.data_type('blob', self.db_connection.url.dialect)})"
+                )
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'name', 'key_val_store', [dialect_utils.reserved_word('key', self.db_connection.url.dialect)])
-        return self
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'name', 'key_val_store', [dialect_utils.reserved_word('key', self.db_connection.url.dialect)])
+                return self
 
     async def _clear_database(self):
         await self.db_connection.execute("DELETE FROM key_val_store")
@@ -49,16 +51,12 @@ class KeyValStore:
         """
         Adds object to key val store
         """
-        try:
-            async with self.db_wrapper.lock:
-                row_to_insert = {"key": key, "value": bytes(obj)}
-                await self.db_connection.execute(
-                    dialect_utils.upsert_query("key_val_store", [dialect_utils.reserved_word('key', self.db_connection.url.dialect)], row_to_insert.keys(), self.db_connection.url.dialect),
-                    row_to_insert
-                )
-        except Exception as e:
-            log.error(e)
-
+        async with self.db_wrapper.lock:
+            row_to_insert = {"key": key, "value": bytes(obj)}
+            await self.db_connection.execute(
+                dialect_utils.upsert_query("key_val_store", [dialect_utils.reserved_word('key', self.db_connection.url.dialect)], row_to_insert.keys(), self.db_connection.url.dialect),
+                row_to_insert
+            )
 
     async def remove_object(self, key: str):
         await self.db_connection.execute(f"DELETE FROM key_val_store where {dialect_utils.reserved_word('key', self.db_connection.url.dialect)}=:key", {"key": key})

@@ -227,10 +227,12 @@ async def run_add_block_benchmark(version: int):
             )
 
             start = time()
-            await block_store.add_full_block(header_hash, full_block, record)
-            await block_store.set_in_chain([header_hash])
-            header_hashes.append(header_hash)
-            await block_store.set_peak(header_hash)
+            async with block_store.db.connection() as connection:
+                async with connection.transaction():
+                    await block_store.add_full_block(header_hash, full_block, record)
+                    await block_store.set_in_chain([header_hash])
+                    header_hashes.append(header_hash)
+                    await block_store.set_peak(header_hash)
 
             stop = time()
             total_time += stop - start

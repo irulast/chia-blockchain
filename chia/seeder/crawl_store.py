@@ -30,54 +30,56 @@ class CrawlStore:
         self = cls()
 
         self.crawl_db = connection
-        await self.crawl_db.execute(
-            (
-                "CREATE TABLE IF NOT EXISTS peer_records("
-                f" peer_id {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)} PRIMARY KEY,"
-                f" ip_address {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)},"
-                " port bigint,"
-                " connected int,"
-                " last_try_timestamp bigint,"
-                " try_count bigint,"
-                " connected_timestamp bigint,"
-                " added_timestamp bigint,"
-                " best_timestamp bigint,"
-                " version text,"
-                " handshake_time text"
-                " tls_version text)"
-            )
-        )
-        await self.crawl_db.execute(
-            (
-                "CREATE TABLE IF NOT EXISTS peer_reliability("
-                f" peer_id {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)} PRIMARY KEY,"
-                " ignore_till int, ban_till int,"
-                " stat_2h_w real, stat_2h_c real, stat_2h_r real,"
-                " stat_8h_w real, stat_8h_c real, stat_8h_r real,"
-                " stat_1d_w real, stat_1d_c real, stat_1d_r real,"
-                " stat_1w_w real, stat_1w_c real, stat_1w_r real,"
-                " stat_1m_w real, stat_1m_c real, stat_1m_r real,"
-                " tries int, successes int)"
-            )
-        )
+        async with self.crawl_db.connection() as connection:
+            async with connection.transaction():
+                await self.crawl_db.execute(
+                    (
+                        "CREATE TABLE IF NOT EXISTS peer_records("
+                        f" peer_id {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)} PRIMARY KEY,"
+                        f" ip_address {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)},"
+                        " port bigint,"
+                        " connected int,"
+                        " last_try_timestamp bigint,"
+                        " try_count bigint,"
+                        " connected_timestamp bigint,"
+                        " added_timestamp bigint,"
+                        " best_timestamp bigint,"
+                        " version text,"
+                        " handshake_time text"
+                        " tls_version text)"
+                    )
+                )
+                await self.crawl_db.execute(
+                    (
+                        "CREATE TABLE IF NOT EXISTS peer_reliability("
+                        f" peer_id {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)} PRIMARY KEY,"
+                        " ignore_till int, ban_till int,"
+                        " stat_2h_w real, stat_2h_c real, stat_2h_r real,"
+                        " stat_8h_w real, stat_8h_c real, stat_8h_r real,"
+                        " stat_1d_w real, stat_1d_c real, stat_1d_r real,"
+                        " stat_1w_w real, stat_1w_c real, stat_1w_r real,"
+                        " stat_1m_w real, stat_1m_c real, stat_1m_r real,"
+                        " tries int, successes int)"
+                    )
+                )
 
-        try:
-            await self.crawl_db.execute("ALTER TABLE peer_records ADD COLUMN tls_version text")
-        except:
-            pass  # ignore what is likely Duplicate column error
+                try:
+                    await self.crawl_db.execute("ALTER TABLE peer_records ADD COLUMN tls_version text")
+                except:
+                    pass  # ignore what is likely Duplicate column error
 
-        await self.crawl_db.execute(f"CREATE TABLE IF NOT EXISTS good_peers(ip {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)})")
+                await self.crawl_db.execute(f"CREATE TABLE IF NOT EXISTS good_peers(ip {dialect_utils.data_type('text-as-index', self.crawl_db.url.dialect)})")
 
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'ip_address', 'peer_records', ['ip_address'])
+                await dialect_utils.create_index_if_not_exists(self.crawl_db, 'ip_address', 'peer_records', ['ip_address'])
 
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'port', 'peer_records', ['port'])
+                await dialect_utils.create_index_if_not_exists(self.crawl_db, 'port', 'peer_records', ['port'])
 
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'connected', 'peer_records', ['connected'])
+                await dialect_utils.create_index_if_not_exists(self.crawl_db, 'connected', 'peer_records', ['connected'])
 
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'added_timestamp', 'peer_records', ['added_timestamp'])
+                await dialect_utils.create_index_if_not_exists(self.crawl_db, 'added_timestamp', 'peer_records', ['added_timestamp'])
 
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'peer_id', 'peer_reliability', ['peer_id'])
-        await dialect_utils.create_index_if_not_exists(self.crawl_db, 'ignore_till', 'peer_reliability', ['ignore_till'])
+                await dialect_utils.create_index_if_not_exists(self.crawl_db, 'peer_id', 'peer_reliability', ['peer_id'])
+                await dialect_utils.create_index_if_not_exists(self.crawl_db, 'ignore_till', 'peer_reliability', ['ignore_till'])
 
         self.last_timestamp = 0
         self.ignored_peers = 0
@@ -269,11 +271,13 @@ class CrawlStore:
 
     async def load_to_db(self):
         log.error("Saving peers to DB...")
-        for peer_id in list(self.host_to_reliability.keys()):
-            if peer_id in self.host_to_reliability and peer_id in self.host_to_records:
-                reliability = self.host_to_reliability[peer_id]
-                record = self.host_to_records[peer_id]
-                await self.add_peer(record, reliability, True)
+        async with self.crawl_db.connection() as connection:
+            async with connection.transaction():
+                for peer_id in list(self.host_to_reliability.keys()):
+                    if peer_id in self.host_to_reliability and peer_id in self.host_to_records:
+                        reliability = self.host_to_reliability[peer_id]
+                        record = self.host_to_records[peer_id]
+                        await self.add_peer(record, reliability, True)
         log.error(" - Done saving peers to DB")
 
     async def unload_from_db(self):
@@ -329,18 +333,20 @@ class CrawlStore:
                 peers.append(peer_id)
         self.reliable_peers = len(peers)
         log.error("Deleting old good_peers from DB...")
-        await self.crawl_db.execute(
-            "DELETE from good_peers",
-        )
+        async with self.crawl_db.connection() as connection:
+            async with connection.transaction():
+                await self.crawl_db.execute(
+                    "DELETE from good_peers",
+                )
 
-        log.error(" - Done deleting old good_peers...")
-        log.error("Saving new good_peers to DB...")
-        for peer in peers:
-            await self.crawl_db.execute(
-                "INSERT INTO good_peers VALUES(:peer)",
-                {"peer": peer},
-            )
-        log.error(" - Done saving new good_peers to DB...")
+                log.error(" - Done deleting old good_peers...")
+                log.error("Saving new good_peers to DB...")
+                for peer in peers:
+                    await self.crawl_db.execute(
+                        "INSERT INTO good_peers VALUES(:peer)",
+                        {"peer": peer},
+                    )
+                log.error(" - Done saving new good_peers to DB...")
 
     def load_host_to_version(self):
         versions = {}

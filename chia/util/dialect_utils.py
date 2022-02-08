@@ -7,6 +7,11 @@ import pymysql
 
 log = logging.getLogger(__name__)
 
+"""
+    This module is used to handle the discrepancies between different sql dialects.
+    It currently supports sqlite, postgres, and mysql
+"""
+
 class SqlDialect(Enum):
     SQLITE = 'sqlite'
     POSTGRES = 'postgresql'
@@ -63,8 +68,10 @@ def indexed_by(index_name: str, dialect:str):
 def reserved_word(word: str, dialect: str):
     if SqlDialect(dialect) == SqlDialect.SQLITE or SqlDialect(dialect) == SqlDialect.POSTGRES:
         return f"\"{word}\""
+
     elif SqlDialect(dialect) == SqlDialect.MYSQL:
         return f"`{word}`"
+
     else:
         raise Exception(f"Invalid or unsupported sql dialect: {dialect}")
 
@@ -134,6 +141,7 @@ async def create_index_if_not_exists(database: Database, index_name: str, table_
     dialect = database.url.dialect
     if SqlDialect(dialect) == SqlDialect.SQLITE or SqlDialect(dialect) == SqlDialect.POSTGRES:
         await database.execute(f"CREATE INDEX IF NOT EXISTS {index_name} on {table_name}({', '.join(index_columns)}){f' WHERE {condition}' if condition else ''}")
+
     elif SqlDialect(database.url.dialect) == SqlDialect.MYSQL:
         try:
             await database.execute(f"CREATE INDEX {index_name} on {table_name}({', '.join(index_columns)})")
@@ -148,6 +156,7 @@ async def drop_index_if_exists(database: Database, index_name: str, table_name: 
     dialect = database.url.dialect
     if SqlDialect(dialect) == SqlDialect.SQLITE or SqlDialect(dialect) == SqlDialect.POSTGRES:
         await database.execute(f"DROP INDEX IF EXISTS {index_name}")
+
     elif SqlDialect(database.url.dialect) == SqlDialect.MYSQL:
         try:
             await database.execute(f"DROP INDEX {index_name} on {table_name}")

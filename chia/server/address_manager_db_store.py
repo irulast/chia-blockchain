@@ -10,14 +10,12 @@ from chia.util.db_factory import get_database_connection
 Node = Tuple[int, ExtendedPeerInfo]
 Table = Tuple[int, int]
 
-# Changed (Really not sure about this one)
-async def create_address_manager_from_db(db_path: Path) -> Optional[AddressManager]:
 
+async def create_address_manager_from_db(db_path: Path) -> Optional[AddressManager]:
     """
     Creates an AddressManager using data from the SQLite peer db
     """
-    database = await get_database_connection(str(db_path))
-    async with database.connection() as connection:
+    async with await get_database_connection(str(db_path)) as connection:
         if connection.url.dialect == "sqlite":
             await connection.execute("pragma journal_mode=wal")
             await connection.execute("pragma synchronous=OFF")
@@ -29,8 +27,8 @@ async def create_address_manager_from_db(db_path: Path) -> Optional[AddressManag
             nodes: List[Node] = await get_nodes(connection)
             new_table_entries: List[Table] = await get_new_table(connection)
             address_manager = create_address_manager(metadata, nodes, new_table_entries)
-    await database.disconnect()
-    return address_manager
+
+        return address_manager
 
 
 async def get_metadata(connection: Database) -> Dict[str, str]:

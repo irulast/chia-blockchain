@@ -32,67 +32,69 @@ class BlockStore:
         self.db_wrapper = db_wrapper
         self.db = db_wrapper.db
 
-        if self.db_wrapper.db_version == 2:
+        async with self.db.connection() as connection:
+            async with connection.transaction():
+                if self.db_wrapper.db_version == 2:
 
-            # TODO: most data in block is duplicated in block_record. The only
-            # reason for this is that our parsing of a FullBlock is so slow,
-            # it's faster to store duplicate data to parse less when we just
-            # need the BlockRecord. Once we fix the parsing (and data structure)
-            # of FullBlock, this can use less space
-            await self.db.execute(
-                "CREATE TABLE IF NOT EXISTS full_blocks("
-                f"header_hash {dialect_utils.data_type('blob', self.db.url.dialect)} PRIMARY KEY,"
-                f"prev_hash {dialect_utils.data_type('blob', self.db.url.dialect)},"
-                "height bigint,"
-                f"sub_epoch_summary {dialect_utils.data_type('blob', self.db.url.dialect)},"
-                f"is_fully_compactified {dialect_utils.data_type('tinyint', self.db.url.dialect)},"
-                f"in_main_chain {dialect_utils.data_type('tinyint', self.db.url.dialect)},"
-                f"block {dialect_utils.data_type('blob', self.db.url.dialect)},"
-                f"block_record {dialect_utils.data_type('blob', self.db.url.dialect)})"
-            )
+                    # TODO: most data in block is duplicated in block_record. The only
+                    # reason for this is that our parsing of a FullBlock is so slow,
+                    # it's faster to store duplicate data to parse less when we just
+                    # need the BlockRecord. Once we fix the parsing (and data structure)
+                    # of FullBlock, this can use less space
+                    await self.db.execute(
+                        "CREATE TABLE IF NOT EXISTS full_blocks("
+                        f"header_hash {dialect_utils.data_type('blob', self.db.url.dialect)} PRIMARY KEY,"
+                        f"prev_hash {dialect_utils.data_type('blob', self.db.url.dialect)},"
+                        "height bigint,"
+                        f"sub_epoch_summary {dialect_utils.data_type('blob', self.db.url.dialect)},"
+                        f"is_fully_compactified {dialect_utils.data_type('tinyint', self.db.url.dialect)},"
+                        f"in_main_chain {dialect_utils.data_type('tinyint', self.db.url.dialect)},"
+                        f"block {dialect_utils.data_type('blob', self.db.url.dialect)},"
+                        f"block_record {dialect_utils.data_type('blob', self.db.url.dialect)})"
+                    )
 
-            # This is a single-row table containing the hash of the current
-            # peak. The "key" field is there to make update statements simple
-            await self.db.execute(f"CREATE TABLE IF NOT EXISTS current_peak(key int PRIMARY KEY, hash {dialect_utils.data_type('blob', self.db.url.dialect)})")
+                    # This is a single-row table containing the hash of the current
+                    # peak. The "key" field is there to make update statements simple
+                    await self.db.execute(f"CREATE TABLE IF NOT EXISTS current_peak(key int PRIMARY KEY, hash {dialect_utils.data_type('blob', self.db.url.dialect)})")
 
-            await dialect_utils.create_index_if_not_exists(self.db, 'height', 'full_blocks', ['height'])
+                    await dialect_utils.create_index_if_not_exists(self.db, 'height', 'full_blocks', ['height'])
 
-            # Sub epoch segments for weight proofs
-            await self.db.execute(
-                "CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3("
-                f"ses_block_hash {dialect_utils.data_type('blob', self.db.url.dialect)} PRIMARY KEY,"
-                f"challenge_segments {dialect_utils.data_type('blob', self.db.url.dialect)})"
-            )
+                    # Sub epoch segments for weight proofs
+                    await self.db.execute(
+                        "CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3("
+                        f"ses_block_hash {dialect_utils.data_type('blob', self.db.url.dialect)} PRIMARY KEY,"
+                        f"challenge_segments {dialect_utils.data_type('blob', self.db.url.dialect)})"
+                    )
 
-            await dialect_utils.create_index_if_not_exists(self.db, 'is_fully_compactified', 'full_blocks', ['is_fully_compactified', 'in_main_chain'], 'in_main_chain=1')
-            await dialect_utils.create_index_if_not_exists(self.db, 'main_chain', 'full_blocks', ['height', 'in_main_chain'], 'in_main_chain=1')
-        else:
+                    await dialect_utils.create_index_if_not_exists(self.db, 'is_fully_compactified', 'full_blocks', ['is_fully_compactified', 'in_main_chain'], 'in_main_chain=1')
+                    await dialect_utils.create_index_if_not_exists(self.db, 'main_chain', 'full_blocks', ['height', 'in_main_chain'], 'in_main_chain=1')
+                else:
 
-            await self.db.execute(
-                f"CREATE TABLE IF NOT EXISTS full_blocks(header_hash {dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY, height bigint,"
-                f" is_block {dialect_utils.data_type('tinyint', self.db.url.dialect)}, is_fully_compactified {dialect_utils.data_type('tinyint', self.db.url.dialect)}, block {dialect_utils.data_type('blob', self.db.url.dialect)})"
-            )
+                    await self.db.execute(
+                        f"CREATE TABLE IF NOT EXISTS full_blocks(header_hash {dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY, height bigint,"
+                        f" is_block {dialect_utils.data_type('tinyint', self.db.url.dialect)}, is_fully_compactified {dialect_utils.data_type('tinyint', self.db.url.dialect)}, block {dialect_utils.data_type('blob', self.db.url.dialect)})"
+                    )
 
-            # Block records
-            await self.db.execute(
-                "CREATE TABLE IF NOT EXISTS block_records(header_hash "
-                f"{dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY, prev_hash text, height bigint,"
-                f"block {dialect_utils.data_type('blob', self.db.url.dialect)}, sub_epoch_summary {dialect_utils.data_type('blob', self.db.url.dialect)}, is_peak {dialect_utils.data_type('tinyint', self.db.url.dialect)}, is_block {dialect_utils.data_type('tinyint', self.db.url.dialect)})"
-            )
+                    # Block records
+                    await self.db.execute(
+                        "CREATE TABLE IF NOT EXISTS block_records(header_hash "
+                        f"{dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY, prev_hash text, height bigint,"
+                        f"block {dialect_utils.data_type('blob', self.db.url.dialect)}, sub_epoch_summary {dialect_utils.data_type('blob', self.db.url.dialect)}, is_peak {dialect_utils.data_type('tinyint', self.db.url.dialect)}, is_block {dialect_utils.data_type('tinyint', self.db.url.dialect)})"
+                    )
 
-            # Sub epoch segments for weight proofs
-            await self.db.execute(
-                f"CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3(ses_block_hash {dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY,"
-                f"challenge_segments {dialect_utils.data_type('blob', self.db.url.dialect)})"
-            )
+                    # Sub epoch segments for weight proofs
+                    await self.db.execute(
+                        f"CREATE TABLE IF NOT EXISTS sub_epoch_segments_v3(ses_block_hash {dialect_utils.data_type('text-as-index', self.db.url.dialect)} PRIMARY KEY,"
+                        f"challenge_segments {dialect_utils.data_type('blob', self.db.url.dialect)})"
+                    )
 
-            # Height index so we can look up in order of height for sync purposes
-            await dialect_utils.create_index_if_not_exists(self.db, 'full_block_height', 'full_blocks', ['height'])
-            await dialect_utils.create_index_if_not_exists(self.db, 'is_fully_compactified', 'full_blocks', ['is_fully_compactified'])
+                    # Height index so we can look up in order of height for sync purposes
+                    await dialect_utils.create_index_if_not_exists(self.db, 'full_block_height', 'full_blocks', ['height'])
+                    await dialect_utils.create_index_if_not_exists(self.db, 'is_fully_compactified', 'full_blocks', ['is_fully_compactified'])
 
-            await dialect_utils.create_index_if_not_exists(self.db, 'height', 'block_records', ['height'])
+                    await dialect_utils.create_index_if_not_exists(self.db, 'height', 'block_records', ['height'])
 
-            await dialect_utils.create_index_if_not_exists(self.db, 'peak', 'block_records', ['is_peak'], 'is_peak = 1')
+                    await dialect_utils.create_index_if_not_exists(self.db, 'peak', 'block_records', ['is_peak'], 'is_peak = 1')
 
 
         self.block_cache = LRUCache(1000)
@@ -304,12 +306,11 @@ class BlockStore:
         all_blocks: Dict[bytes32, BlockRecord] = {}
         if self.db_wrapper.db_version == 2:
             query = text("SELECT header_hash, block_record FROM full_blocks WHERE header_hash in :header_hashes")
-            query = query.bindparams(bindparam("header_hashes", tuple(header_hashes), expanding=True))
+            query = query.bindparams(bindparam("header_hashes", header_hashes, expanding=True))
             rows = await self.db.fetch_all(query)
             for row in rows:
                 header_hash = bytes32(row[0])
                 all_blocks[header_hash] = BlockRecord.from_bytes(row[1])
-
         else:
             query = text('SELECT block from block_records WHERE header_hash in :header_hashes')
             query = query.bindparams(bindparam('header_hashes', tuple([hh.hex() for hh in header_hashes]), expanding = True))
@@ -317,7 +318,6 @@ class BlockStore:
             for row in rows:
                 block_rec: BlockRecord = BlockRecord.from_bytes(row[0])
                 all_blocks[block_rec.header_hash] = block_rec
-
 
         ret: List[BlockRecord] = []
         for hh in header_hashes:
@@ -391,7 +391,7 @@ class BlockStore:
 
             rows = await self.db.fetch_all(
                 "SELECT header_hash, block_record FROM full_blocks WHERE height >= :start AND height <= :stop",
-                {"start": start, "stop": stop},
+                {"start": int(start), "stop": int(stop)},
             )
             for row in rows:
                 header_hash = bytes32(row[0])

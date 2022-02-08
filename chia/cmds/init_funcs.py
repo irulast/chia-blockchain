@@ -24,7 +24,6 @@ from chia.util.config import (
     unflatten_properties,
 )
 from chia.util.db_factory import get_database_connection
-from chia.util.ints import uint32
 from chia.util.keychain import Keychain
 from chia.util.path import mkdir, path_from_root
 from chia.util.ssl_check import (

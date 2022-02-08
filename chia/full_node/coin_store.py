@@ -35,49 +35,51 @@ class CoinStore:
         self.db_wrapper = db_wrapper
         self.coin_record_db = db_wrapper.db
 
-        if self.db_wrapper.db_version == 2:
+        async with self.coin_record_db.connection() as connection:
+            async with connection.transaction():
+                if self.db_wrapper.db_version == 2:
 
-            # the coin_name is unique in this table because the CoinStore always
-            # only represent a single peak
-            await self.coin_record_db.execute(
-                "CREATE TABLE IF NOT EXISTS coin_record("
-                f"coin_name {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)} PRIMARY KEY,"
-                " confirmed_index bigint,"
-                " spent_index bigint,"  # if this is zero, it means the coin has not been spent
-                " coinbase int,"
-                f" puzzle_hash {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"
-                f" coin_parent {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"
-                f" amount {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"  # we use a blob of 8 bytes to store uint64
-                " timestamp bigint)"
-            )
+                    # the coin_name is unique in this table because the CoinStore always
+                    # only represent a single peak
+                    await self.coin_record_db.execute(
+                        "CREATE TABLE IF NOT EXISTS coin_record("
+                        f"coin_name {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)} PRIMARY KEY,"
+                        " confirmed_index bigint,"
+                        " spent_index bigint,"  # if this is zero, it means the coin has not been spent
+                        " coinbase int,"
+                        f" puzzle_hash {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"
+                        f" coin_parent {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"
+                        f" amount {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"  # we use a blob of 8 bytes to store uint64
+                        " timestamp bigint)"
+                    )
 
-        else:
+                else:
 
-            # the coin_name is unique in this table because the CoinStore always
-            # only represent a single peak
-            await self.coin_record_db.execute(
-                (
-                    "CREATE TABLE IF NOT EXISTS coin_record("
-                    f"coin_name {dialect_utils.data_type('text-as-index', self.coin_record_db.url.dialect)} PRIMARY KEY,"
-                    " confirmed_index bigint,"
-                    " spent_index bigint,"
-                    " spent int,"
-                    " coinbase int,"
-                    f" puzzle_hash {dialect_utils.data_type('text-as-index', self.coin_record_db.url.dialect)},"
-                    f" coin_parent {dialect_utils.data_type('text-as-index', self.coin_record_db.url.dialect)},"
-                    f" amount {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"
-                    " timestamp bigint)"
-                )
-            )
+                    # the coin_name is unique in this table because the CoinStore always
+                    # only represent a single peak
+                    await self.coin_record_db.execute(
+                        (
+                            "CREATE TABLE IF NOT EXISTS coin_record("
+                            f"coin_name {dialect_utils.data_type('text-as-index', self.coin_record_db.url.dialect)} PRIMARY KEY,"
+                            " confirmed_index bigint,"
+                            " spent_index bigint,"
+                            " spent int,"
+                            " coinbase int,"
+                            f" puzzle_hash {dialect_utils.data_type('text-as-index', self.coin_record_db.url.dialect)},"
+                            f" coin_parent {dialect_utils.data_type('text-as-index', self.coin_record_db.url.dialect)},"
+                            f" amount {dialect_utils.data_type('blob', self.db_wrapper.db.url.dialect)},"
+                            " timestamp bigint)"
+                        )
+                    )
 
-        # Useful for reorg lookups
-        await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_confirmed_index', 'coin_record', ['confirmed_index'])
+                # Useful for reorg lookups
+                await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_confirmed_index', 'coin_record', ['confirmed_index'])
 
-        await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_spent_index', 'coin_record', ['spent_index'])
+                await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_spent_index', 'coin_record', ['spent_index'])
 
-        await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_puzzle_hash', 'coin_record', ['puzzle_hash'])
+                await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_puzzle_hash', 'coin_record', ['puzzle_hash'])
 
-        await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_parent_index', 'coin_record', ['coin_parent'])
+                await dialect_utils.create_index_if_not_exists(self.coin_record_db, 'coin_parent_index', 'coin_record', ['coin_parent'])
 
         self.coin_record_cache = LRUCache(cache_size)
         return self
@@ -142,8 +144,10 @@ class CoinStore:
             )
             additions.append(reward_coin_r)
 
-        await self._add_coin_records(additions)
-        await self._set_spent(tx_removals, height)
+        async with self.coin_record_db.connection() as connection:
+            async with connection.transaction():
+                await self._add_coin_records(additions)
+                await self._set_spent(tx_removals, height)
 
         end = time()
         log.log(
@@ -170,7 +174,6 @@ class CoinStore:
             record = CoinRecord(coin, row[0], row[1], row[2], row[6])
             self.coin_record_cache.put(record.coin.name(), record)
             return record
-
         return None
 
     async def get_coins_added_at_height(self, height: uint32) -> List[CoinRecord]:

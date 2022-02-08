@@ -22,7 +22,6 @@ from chia.consensus.default_constants import DEFAULT_CONSTANTS
 from chia.consensus.coinbase import create_pool_coin, create_farmer_coin
 from chia.consensus.block_rewards import calculate_pool_reward, calculate_base_farmer_reward
 from chia.consensus.cost_calculator import NPCResult
-from chia.util.db_factory import get_database_connection
 from chia.util.temp_file_db import TempFileDatabase
 
 """

@@ -81,8 +81,6 @@ async def convert_v1_to_v2(in_path: Path, out_path: Path) -> None:
             if row is not None and row[0] != 1:
                 print(f"blockchain database already version {row[0]}\nDone")
                 raise RuntimeError("already v2")
-        # except aiosqlite.OperationalError:
-        # probably too general, need to figure out equivalent for mysql and postgres
         except:
             pass
 
@@ -90,37 +88,39 @@ async def convert_v1_to_v2(in_path: Path, out_path: Path) -> None:
 
         print(f"opening file for writing: {out_path}")
         async with await get_database_connection(out_path) as out_db:
-            if out_db.url.dialect == 'sqlite':
-                await out_db.execute("pragma journal_mode=OFF")
-                await out_db.execute("pragma synchronous=OFF")
-                await out_db.execute("pragma cache_size=131072")
-                await out_db.execute("pragma locking_mode=exclusive")
+            async with out_db.connection() as connection:
+                async with connection.transaction():
+                    if out_db.url.dialect == 'sqlite':
+                        await out_db.execute("pragma journal_mode=OFF")
+                        await out_db.execute("pragma synchronous=OFF")
+                        await out_db.execute("pragma cache_size=131072")
+                        await out_db.execute("pragma locking_mode=exclusive")
 
-            print("initializing v2 version")
-            await out_db.execute("CREATE TABLE database_version(version int)")
-            await out_db.execute("INSERT INTO database_version VALUES(:version)", {"version": 2})
+                    print("initializing v2 version")
+                    await out_db.execute("CREATE TABLE database_version(version int)")
+                    await out_db.execute("INSERT INTO database_version VALUES(:version)", {"version": 2})
 
-            print("initializing v2 block store")
-            await out_db.execute(
-                "CREATE TABLE full_blocks("
-                f"header_hash {dialect_utils.data_type('blob-as-index', out_db.url.dialect)} PRIMARY KEY,"
-                f"prev_hash {dialect_utils.data_type('blob', out_db.url.dialect)},"
-                "height bigint,"
-                f"sub_epoch_summary {dialect_utils.data_type('blob', out_db.url.dialect)},"
-                f"is_fully_compactified {dialect_utils.data_type('tinyint', out_db.url.dialect)},"
-                f"in_main_chain {dialect_utils.data_type('tinyint', out_db.url.dialect)},"
-                f"block {dialect_utils.data_type('blob', out_db.url.dialect)},"
-                f"block_record {dialect_utils.data_type('blob', out_db.url.dialect)})"
-            )
-            await out_db.execute(
-                f"CREATE TABLE sub_epoch_segments_v3(ses_block_hash {dialect_utils.data_type('blob-as-index', out_db.url.dialect)} PRIMARY KEY, challenge_segments {dialect_utils.data_type('blob', out_db.url.dialect)})"
-            )
-            await out_db.execute(f"CREATE TABLE current_peak(key int PRIMARY KEY, hash {dialect_utils.data_type('blob', out_db.url.dialect)})")
+                    print("initializing v2 block store")
+                    await out_db.execute(
+                        "CREATE TABLE full_blocks("
+                        f"header_hash {dialect_utils.data_type('blob-as-index', out_db.url.dialect)} PRIMARY KEY,"
+                        f"prev_hash {dialect_utils.data_type('blob', out_db.url.dialect)},"
+                        "height bigint,"
+                        f"sub_epoch_summary {dialect_utils.data_type('blob', out_db.url.dialect)},"
+                        f"is_fully_compactified {dialect_utils.data_type('tinyint', out_db.url.dialect)},"
+                        f"in_main_chain {dialect_utils.data_type('tinyint', out_db.url.dialect)},"
+                        f"block {dialect_utils.data_type('blob', out_db.url.dialect)},"
+                        f"block_record {dialect_utils.data_type('blob', out_db.url.dialect)})"
+                    )
+                    await out_db.execute(
+                        f"CREATE TABLE sub_epoch_segments_v3(ses_block_hash {dialect_utils.data_type('blob-as-index', out_db.url.dialect)} PRIMARY KEY, challenge_segments {dialect_utils.data_type('blob', out_db.url.dialect)})"
+                    )
+                    await out_db.execute(f"CREATE TABLE current_peak(key int PRIMARY KEY, hash {dialect_utils.data_type('blob', out_db.url.dialect)})")
 
-            peak_hash, peak_height = await store_v1.get_peak()
-            print(f"peak: {peak_hash.hex()} height: {peak_height}")
+                    peak_hash, peak_height = await store_v1.get_peak()
+                    print(f"peak: {peak_hash.hex()} height: {peak_height}")
 
-            await out_db.execute("INSERT INTO current_peak(key, hash) VALUES(:key, :hash)", {"key": 0, "hash":  peak_hash})
+                    await out_db.execute("INSERT INTO current_peak(key, hash) VALUES(:key, :hash)", {"key": 0, "hash":  peak_hash})
 
             print("[1/5] converting full_blocks")
             height = peak_height + 1
@@ -138,7 +138,7 @@ async def convert_v1_to_v2(in_path: Path, out_path: Path) -> None:
             full_block_rows_map = {}
             for full_block_row in (await in_db.fetch_all("SELECT header_hash, height, is_fully_compactified, block FROM full_blocks ORDER BY height DESC")):
                 full_block_rows_map[bytes.fromhex(full_block_row[0])] = full_block_row
-            
+
             for block_record_row in block_record_rows:
 
                 header_hash = bytes.fromhex(block_record_row[0])

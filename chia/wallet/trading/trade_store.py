@@ -71,30 +71,32 @@ class TradeStore:
         self.cache_size = cache_size
         self.db_wrapper = db_wrapper
         self.db_connection = db_wrapper.db
-        await self.db_connection.execute(
-            (
-                "CREATE TABLE IF NOT EXISTS trade_records("
-                f" trade_record {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
-                f" trade_id {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"
-                " status int,"
-                " confirmed_at_index int,"
-                " created_at_time bigint,"
-                " sent int,"
-                f" is_my_offer {dialect_utils.data_type('tinyint', self.db_connection.url.dialect)})"
-            )
-        )
+        async with self.db_connection.connection() as connection:
+            async with connection.transaction():
+                await self.db_connection.execute(
+                    (
+                        "CREATE TABLE IF NOT EXISTS trade_records("
+                        f" trade_record {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
+                        f" trade_id {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"
+                        " status int,"
+                        " confirmed_at_index int,"
+                        " created_at_time bigint,"
+                        " sent int,"
+                        f" is_my_offer {dialect_utils.data_type('tinyint', self.db_connection.url.dialect)})"
+                    )
+                )
 
-        # Attempt to add the is_my_offer column. If successful, migrate is_my_offer to the new column.
-        needs_is_my_offer_migration: bool = False
-        try:
-            await self.db_connection.execute(f"ALTER TABLE trade_records ADD COLUMN is_my_offer {dialect_utils.data_type('tinyint', self.db_connection.url.dialect)}")
-            needs_is_my_offer_migration = True
-        except:
-            pass  # ignore what is likely Duplicate column error
+                # Attempt to add the is_my_offer column. If successful, migrate is_my_offer to the new column.
+                needs_is_my_offer_migration: bool = False
+                try:
+                    await self.db_connection.execute(f"ALTER TABLE trade_records ADD COLUMN is_my_offer {dialect_utils.data_type('tinyint', self.db_connection.url.dialect)}")
+                    needs_is_my_offer_migration = True
+                except:
+                    pass  # ignore what is likely Duplicate column error
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'trade_confirmed_index', 'trade_records', ['confirmed_at_index'])
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'trade_status', 'trade_records', ['status'])
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'trade_id', 'trade_records', ['trade_id'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'trade_confirmed_index', 'trade_records', ['confirmed_at_index'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'trade_status', 'trade_records', ['status'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'trade_id', 'trade_records', ['trade_id'])
 
         if needs_is_my_offer_migration:
             await migrate_is_my_offer(self.log, self.db_connection)
@@ -118,7 +120,6 @@ class TradeStore:
                 "confirmed_at_index": int(record.confirmed_at_index),
                 "created_at_time": int(record.created_at_time),
                 "sent": int(record.sent),
-                #TODO check if int
                 "is_my_offer": record.is_my_offer
             }
             await self.db_connection.execute(
@@ -426,7 +427,7 @@ class TradeStore:
 
     async def rollback_to_block(self, block_index):
 
-        # Delete from storage10f
+        # Delete from storage
         await self.db_connection.execute(
             "DELETE FROM trade_records WHERE confirmed_at_index>:min_confirmed_at_index", {"min_confirmed_at_index": int(block_index)}
         )

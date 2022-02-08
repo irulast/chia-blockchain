@@ -11,7 +11,6 @@ class WalletInterestedStore:
     """
     Stores coin ids that we are interested in receiving
     """
-    #Changed
     db_connection: Database
     db_wrapper: DBWrapper
 
@@ -21,17 +20,20 @@ class WalletInterestedStore:
 
         self.db_connection = wrapper.db
         self.db_wrapper = wrapper
+        async with self.db_connection.connection() as connection:
+            async with connection.transaction():
+                await self.db_connection.execute(f"CREATE TABLE IF NOT EXISTS interested_coins(coin_name {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY)")
 
-        await self.db_connection.execute(f"CREATE TABLE IF NOT EXISTS interested_coins(coin_name {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY)")
-
-        await self.db_connection.execute(
-            f"CREATE TABLE IF NOT EXISTS interested_puzzle_hashes(puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY, wallet_id integer)"
-        )
+                await self.db_connection.execute(
+                    f"CREATE TABLE IF NOT EXISTS interested_puzzle_hashes(puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY, wallet_id integer)"
+                )
         return self
 
     async def _clear_database(self):
-        await self.db_connection.execute("DELETE FROM puzzle_hashes")
-        await self.db_connection.execute("DELETE FROM interested_coins")
+        async with self.db_connection.connection() as connection:
+            async with connection.transaction():
+                await self.db_connection.execute("DELETE FROM puzzle_hashes")
+                await self.db_connection.execute("DELETE FROM interested_coins")
 
     async def get_interested_coin_ids(self) -> List[bytes32]:
         rows_hex = await self.db_connection.fetch_all("SELECT coin_name FROM interested_coins")

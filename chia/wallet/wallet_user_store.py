@@ -14,7 +14,6 @@ class WalletUserStore:
     WalletUserStore keeps track of all user created wallets and necessary smart-contract data
     """
 
-    # Changed
     db_connection: Database
     cache_size: uint32
     db_wrapper: DBWrapper
@@ -25,23 +24,25 @@ class WalletUserStore:
 
         self.db_wrapper = db_wrapper
         self.db_connection = db_wrapper.db
-        await self.db_connection.execute(
-            (
-                "CREATE TABLE IF NOT EXISTS users_wallets("
-                f"id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_connection.url.dialect)},"
-                f" name {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
-                " wallet_type int,"
-                f" data {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)})"
-            )
-        )
+        async with self.db_connection.connection() as connection:
+            async with connection.transaction():
+                await self.db_connection.execute(
+                    (
+                        "CREATE TABLE IF NOT EXISTS users_wallets("
+                        f"id INTEGER PRIMARY KEY {dialect_utils.clause('AUTOINCREMENT', self.db_connection.url.dialect)},"
+                        f" name {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
+                        " wallet_type int,"
+                        f" data {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)})"
+                    )
+                )
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'name', 'users_wallets', ['name'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'name', 'users_wallets', ['name'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'type', 'users_wallets', ['wallet_type'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'type', 'users_wallets', ['wallet_type'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'data', 'users_wallets', ['data'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'data', 'users_wallets', ['data'])
 
-        await self.init_wallet()
+                await self.init_wallet()
         return self
 
     async def init_wallet(self):

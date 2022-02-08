@@ -504,7 +504,6 @@ class TestWeightProof:
     @pytest.mark.skip("used for debugging")
     @pytest.mark.asyncio
     async def test_weight_proof_from_database(self):
-        # not sure what the path to db should be
         connection = await get_database_connection(str("path to db"))
         block_store: BlockStore = await BlockStore.create(connection)
         blocks = await block_store.get_block_records_in_range(0, 0xFFFFFFFF)

@@ -54,7 +54,6 @@ class TestWalletPoolStore:
             db_wrapper = DBWrapper(db_connection)
             store = await WalletPoolStore.create(db_wrapper)
             async with db_connection.connection() as db_connection:
-                # async with db_connection.transaction(force_rollback=True):
                 transaction = await db_connection.transaction()
                 try:
                     coin_0 = Coin(token_bytes(32), token_bytes(32), uint64(12312))

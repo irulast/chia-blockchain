@@ -30,38 +30,40 @@ class WalletTransactionStore:
 
         self.db_wrapper = db_wrapper
         self.db_connection = self.db_wrapper.db
-        await self.db_connection.execute(
-            (
-                "CREATE TABLE IF NOT EXISTS transaction_record("
-                f" transaction_record {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
-                f" bundle_id {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"  # NOTE: bundle_id is being stored as bytes, not hex
-                " confirmed_at_height bigint,"
-                " created_at_time bigint,"
-                f" to_puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
-                f" amount {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
-                f" fee_amount {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
-                " confirmed int,"
-                " sent int,"
-                " wallet_id bigint,"
-                " trade_id text,"
-                " type int)"
-            )
-        )
+        async with self.db_connection.connection() as connection:
+            async with connection.transaction():
+                await self.db_connection.execute(
+                    (
+                        "CREATE TABLE IF NOT EXISTS transaction_record("
+                        f" transaction_record {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
+                        f" bundle_id {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"  # NOTE: bundle_id is being stored as bytes, not hex
+                        " confirmed_at_height bigint,"
+                        " created_at_time bigint,"
+                        f" to_puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
+                        f" amount {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
+                        f" fee_amount {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
+                        " confirmed int,"
+                        " sent int,"
+                        " wallet_id bigint,"
+                        " trade_id text,"
+                        " type int)"
+                    )
+                )
 
-        # Useful for reorg lookups
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_confirmed_index', 'transaction_record', ['confirmed_at_height'])
+                # Useful for reorg lookups
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_confirmed_index', 'transaction_record', ['confirmed_at_height'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_created_index', 'transaction_record', ['created_at_time'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_created_index', 'transaction_record', ['created_at_time'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_confirmed', 'transaction_record', ['confirmed'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_confirmed', 'transaction_record', ['confirmed'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_sent', 'transaction_record', ['sent'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_sent', 'transaction_record', ['sent'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_type', 'transaction_record', ['type'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_type', 'transaction_record', ['type'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_to_puzzle_hash', 'transaction_record', ['to_puzzle_hash'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'tx_to_puzzle_hash', 'transaction_record', ['to_puzzle_hash'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_id', 'transaction_record', ['wallet_id'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_id', 'transaction_record', ['wallet_id'])
 
         self.tx_record_cache = {}
         self.tx_submitted = {}

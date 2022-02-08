@@ -33,34 +33,35 @@ class WalletCoinStore:
 
         self.db_connection = wrapper.db
         self.db_wrapper = wrapper
-        await self.db_connection.execute(
-            (
-                "CREATE TABLE IF NOT EXISTS coin_record("
-                f"coin_name {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"
-                " confirmed_height bigint,"
-                " spent_height bigint,"
-                " spent int,"
-                " coinbase int,"
-                f" puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
-                " coin_parent text,"
-                f" amount {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
-                " wallet_type int,"
-                " wallet_id int)"
-            )
-        )
+        async with self.db_connection.connection() as connection:
+            async with connection.transaction():
+                await self.db_connection.execute(
+                    (
+                        "CREATE TABLE IF NOT EXISTS coin_record("
+                        f"coin_name {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)} PRIMARY KEY,"
+                        " confirmed_height bigint,"
+                        " spent_height bigint,"
+                        " spent int,"
+                        " coinbase int,"
+                        f" puzzle_hash {dialect_utils.data_type('text-as-index', self.db_connection.url.dialect)},"
+                        " coin_parent text,"
+                        f" amount {dialect_utils.data_type('blob', self.db_connection.url.dialect)},"
+                        " wallet_type int,"
+                        " wallet_id int)"
+                    )
+                )
 
-        # Useful for reorg lookups
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_confirmed_height', 'coin_record', ['confirmed_height'])
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_spent_height', 'coin_record', ['spent_height'])
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_spent', 'coin_record', ['spent'])
+                # Useful for reorg lookups
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_confirmed_height', 'coin_record', ['confirmed_height'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_spent_height', 'coin_record', ['spent_height'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_spent', 'coin_record', ['spent'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_puzzle_hash', 'coin_record', ['puzzle_hash'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'coin_puzzle_hash', 'coin_record', ['puzzle_hash'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_type', 'coin_record', ['wallet_type'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_type', 'coin_record', ['wallet_type'])
 
-        await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_id', 'coin_record', ['wallet_id'])
+                await dialect_utils.create_index_if_not_exists(self.db_connection, 'wallet_id', 'coin_record', ['wallet_id'])
 
-        #await self.db_connection.commit()
         self.coin_record_cache = {}
         self.unspent_coin_wallet_cache = {}
         await self.rebuild_wallet_cache()
@@ -133,7 +134,7 @@ class WalletCoinStore:
                 coin_cache = self.unspent_coin_wallet_cache[coin_record.wallet_id]
                 if coin_name in coin_cache:
                     coin_cache.pop(coin_record.coin.name())
-                    
+
         await self.db_connection.execute("DELETE FROM coin_record WHERE coin_name=:coin_name", {"coin_name": coin_name.hex()})
 
     # Update coin_record to be spent in DB

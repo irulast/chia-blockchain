@@ -6,6 +6,11 @@ import asyncpg
 from databases import Database
 import pymysql
 log = logging.getLogger(__name__)
+"""
+    This module is used to get a database connection from encode.io/databases.
+    If a CHIA_DB_ROOT env variable is present it is used to create / connect to the
+    desired database, else a sqlite connection is created.
+"""
 
 async def get_database_connection(default_db_path: str) -> Database:
     if os.environ.get("CHIA_DB_ROOT", None) is not None:
@@ -50,6 +55,7 @@ async def _create_database_from_env_var(default_db_path):
         else:
             raise e
 
+# asynco.gather wrap to counteract encode.io/databases bug that occurs when using postgres
 class DatabaseWrapper(Database):
     async def execute(self, *args, **kwargs):
         return (await asyncio.gather(super().execute(*args, **kwargs)))[0]

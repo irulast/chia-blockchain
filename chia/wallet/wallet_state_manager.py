@@ -810,9 +810,10 @@ class WalletStateManager:
                         for rem_coin in out_tx_record.removals:
                             if rem_coin.name() == coin_state.coin.name():
                                 rem_tx_records.append(out_tx_record)
-
-                    for tx_record in rem_tx_records:
-                        await self.tx_store.set_confirmed(tx_record.name, coin_state.spent_height)
+                    async with self.db_connection.connection() as connection:
+                        async with connection.transaction():
+                            for tx_record in rem_tx_records:
+                                await self.tx_store.set_confirmed(tx_record.name, coin_state.spent_height)
                 for unconfirmed_record in all_unconfirmed:
                     for rem_coin in unconfirmed_record.removals:
                         if rem_coin.name() == coin_state.coin.name():
@@ -1115,10 +1116,12 @@ class WalletStateManager:
         Rolls back and updates the coin_store and transaction store. It's possible this height
         is the tip, or even beyond the tip.
         """
-        await self.coin_store.rollback_to_block(height)
+        async with self.db_connection.connection() as connection:
+            async with connection.transaction():
+                await self.coin_store.rollback_to_block(height)
 
-        reorged: List[TransactionRecord] = await self.tx_store.get_transaction_above(height)
-        await self.tx_store.rollback_to_block(height)
+                reorged: List[TransactionRecord] = await self.tx_store.get_transaction_above(height)
+                await self.tx_store.rollback_to_block(height)
         for record in reorged:
             if record.type in [
                 TransactionType.OUTGOING_TX,
