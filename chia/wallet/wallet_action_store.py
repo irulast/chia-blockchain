@@ -24,7 +24,7 @@ class WalletActionStore:
         self.db_wrapper = db_wrapper
         self.db_connection = db_wrapper.db
 
-        async with self.coin_record_db.connection() as connection:
+        async with self.db_connection.connection() as connection:
             async with connection.transaction():
                 await self.db_connection.execute(
                     (
