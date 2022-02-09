@@ -5,6 +5,7 @@ import traceback
 import asyncpg
 from databases import Database
 import pymysql
+from chia.util.dialect_utils import SqlDialect
 log = logging.getLogger(__name__)
 """
     This module is used to get a database connection from encode.io/databases.
@@ -16,7 +17,7 @@ async def get_database_connection(default_db_path: str) -> Database:
     if os.environ.get("CHIA_DB_ROOT", None) is not None:
         return await _create_database_from_env_var(default_db_path)
     else:
-        database = DatabaseWrapper("sqlite:///{}".format(default_db_path))
+        database = DatabaseWrapper(f"sqlite:///{default_db_path}")
         await database.connect()
         return database
 
@@ -58,15 +59,27 @@ async def _create_database_from_env_var(default_db_path):
 # asynco.gather wrap to counteract encode.io/databases bug that occurs when using postgres
 class DatabaseWrapper(Database):
     async def execute(self, *args, **kwargs):
-        return (await asyncio.gather(super().execute(*args, **kwargs)))[0]
+        if self.url.dialect == SqlDialect.POSTGRES:
+            return (await asyncio.gather(super().execute(*args, **kwargs)))[0]
+        else:
+            return await super().execute(*args, **kwargs)
 
     async def execute_many(self, *args, **kwargs):
-        return (await asyncio.gather(super().execute_many(*args, **kwargs)))[0]
+        if self.url.dialect == SqlDialect.POSTGRES:
+            return (await asyncio.gather(super().execute_many(*args, **kwargs)))[0]
+        else:
+            return await super().execute_many(*args, **kwargs)
 
     async def fetch_all(self, *args, **kwargs):
-        return (await asyncio.gather(super().fetch_all(*args, **kwargs)))[0]
+        if self.url.dialect == SqlDialect.POSTGRES:
+            return (await asyncio.gather(super().fetch_all(*args, **kwargs)))[0]
+        else:
+            return await super().fetch_all(*args, **kwargs)
 
     async def fetch_one(self, *args, **kwargs):
-        return (await asyncio.gather(super().fetch_one(*args, **kwargs)))[0]
+        if self.url.dialect == SqlDialect.POSTGRES:
+            return (await asyncio.gather(super().fetch_one(*args, **kwargs)))[0]
+        else:
+            return await super().fetch_one(*args, **kwargs)
     
 

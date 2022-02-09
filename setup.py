@@ -11,10 +11,10 @@ dependencies = [
     "clvm_rs==0.1.19",
     "clvm_tools==0.4.3",
     "aiohttp==3.7.4",  # HTTP server for full node rpc
+    "aiosqlite==0.17.0",
     "aiopg==1.3.3",
     "aiomysql==0.0.22",
     "databases==0.5.3",  # asyncio wrapper for database, to store blocks
-    "databases[sqlite]==0.5.3",
     "databases[postgresql]==0.5.3",
     "bitstring==3.1.9",  # Binary data management library
     "colorama==0.4.4",  # Colorizes terminal output
