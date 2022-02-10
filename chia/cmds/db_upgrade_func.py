@@ -89,13 +89,12 @@ async def convert_v1_to_v2(in_path: Path, out_path: Path) -> None:
         print(f"opening file for writing: {out_path}")
         async with await get_database_connection(out_path) as out_db:
             async with out_db.connection() as connection:
-                async with connection.transaction():
-                    if out_db.url.dialect == 'sqlite':
+                if out_db.url.dialect == 'sqlite':
                         await out_db.execute("pragma journal_mode=OFF")
                         await out_db.execute("pragma synchronous=OFF")
                         await out_db.execute("pragma cache_size=131072")
                         await out_db.execute("pragma locking_mode=exclusive")
-
+                async with connection.transaction():
                     print("initializing v2 version")
                     await out_db.execute("CREATE TABLE database_version(version int)")
                     await out_db.execute("INSERT INTO database_version VALUES(:version)", {"version": 2})
