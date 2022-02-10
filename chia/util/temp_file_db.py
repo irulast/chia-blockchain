@@ -15,7 +15,7 @@ class TempFileDatabase:
         self.db_path = Path(tempfile.NamedTemporaryFile().name)
         if self.db_path.exists():
             self.db_path.unlink()
-        self.connection = Database("sqlite:///{}".format(str(self.db_path)))
+        self.connection = Database("sqlite:///{}".format(str(self.db_path)), timeout=5)
     
     async def disconnect(self):
         await self.connection.disconnect()

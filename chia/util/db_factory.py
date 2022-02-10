@@ -1,7 +1,6 @@
 import asyncio
 import os
 import logging
-import traceback
 import asyncpg
 from databases import Database
 import pymysql
@@ -17,7 +16,7 @@ async def get_database_connection(default_db_path: str) -> Database:
     if os.environ.get("CHIA_DB_ROOT", None) is not None:
         return await _create_database_from_env_var(default_db_path)
     else:
-        database = DatabaseWrapper(f"sqlite:///{default_db_path}")
+        database = DatabaseWrapper(f"sqlite:///{default_db_path}", timeout=5)
         await database.connect()
         return database
 
