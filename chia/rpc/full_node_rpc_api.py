@@ -1,3 +1,5 @@
+from datetime import datetime
+import logging
 from typing import Any, Callable, Dict, List, Optional
 
 from chia.consensus.block_record import BlockRecord
@@ -29,6 +31,10 @@ class FullNodeRpcApi:
         self.service = service
         self.service_name = "chia_full_node"
         self.cached_blockchain_state: Optional[Dict] = None
+        self.total_compute_time = 0
+        self.total_queries = 0
+
+        # self.log = logging.getLogger(__name__)
 
     def get_routes(self) -> Dict[str, Callable]:
         return {
@@ -51,6 +57,7 @@ class FullNodeRpcApi:
             # Coins
             "/get_coin_records_by_puzzle_hash": self.get_coin_records_by_puzzle_hash,
             "/get_coin_records_by_puzzle_hashes": self.get_coin_records_by_puzzle_hashes,
+            "/get_coin_records_by_puzzle_hashes_paginated": self.get_coin_records_by_puzzle_hashes_paginated,
             "/get_coin_record_by_name": self.get_coin_record_by_name,
             "/get_coin_records_by_names": self.get_coin_records_by_names,
             "/get_coin_records_by_parent_ids": self.get_coin_records_by_parent_ids,
@@ -385,9 +392,10 @@ class FullNodeRpcApi:
             if peak_height < uint32(a):
                 self.service.log.warning("requested block is higher than known peak ")
                 break
-            header_hash: Optional[bytes32] = self.service.blockchain.height_to_hash(uint32(a))
-            if header_hash is None:
-                raise ValueError(f"Height not in blockchain: {a}")
+            # TODO: address hint error and remove ignore
+            #       error: Incompatible types in assignment (expression has type "Optional[bytes32]", variable has type
+            #       "bytes32")  [assignment]
+            header_hash: bytes32 = self.service.blockchain.height_to_hash(uint32(a))  # type: ignore[assignment]
             record: Optional[BlockRecord] = self.service.blockchain.try_block_record(header_hash)
             if record is None:
                 # Fetch from DB
@@ -526,8 +534,67 @@ class FullNodeRpcApi:
             kwargs["include_spent_coins"] = request["include_spent_coins"]
 
         coin_records = await self.service.blockchain.coin_store.get_coin_records_by_puzzle_hashes(**kwargs)
-
         return {"coin_records": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in coin_records]}
+
+    async def get_coin_records_by_puzzle_hashes_paginated(self, request: Dict) -> Optional[Dict]:
+        """
+        Retrieves the coins for a given puzzlehash, by default returns unspent coins.
+        """
+        if "puzzle_hashes" not in request:
+            raise ValueError("Puzzle hashes not in request")
+        if "page_size" not in request:
+            raise ValueError("page_size not in request")
+        kwargs: Dict[str, Any] = {
+            "include_spent_coins": False,
+            "puzzle_hashes": [hexstr_to_bytes(ph) for ph in request["puzzle_hashes"]],
+            "page_size": request["page_size"]
+        }
+        if "start_height" in request:
+            kwargs["start_height"] = uint32(request["start_height"])
+        if "end_height" in request:
+            kwargs["end_height"] = uint32(request["end_height"])
+        if "last_id" in request:
+            kwargs["last_id"] = hexstr_to_bytes(request["last_id"])
+
+        if "include_spent_coins" in request:
+            kwargs["include_spent_coins"] = request["include_spent_coins"]
+
+        coin_records, last_id, total_coin_count = await self.service.blockchain.coin_store.get_coin_records_by_puzzle_hashes_paginated(**kwargs)
+        coin_record_with_spends = []
+
+        for coin_record in coin_records:
+            coin_record_dictionary = coin_record_dict_backwards_compat(coin_record.to_json_dict())
+            if coin_record.spent_block_index > 0:
+                header_hash = self.service.blockchain.height_to_hash(coin_record.spent_block_index)
+                assert header_hash is not None
+                block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
+
+                if block is None or block.transactions_generator is None:
+                    raise ValueError("Invalid block or block generator")
+
+                block_generator: Optional[BlockGenerator] = await self.service.blockchain.get_block_generator(block)
+                assert block_generator is not None
+                error, puzzle, solution = get_puzzle_and_solution_for_coin(
+                    block_generator, coin_record.coin.name(), self.service.constants.MAX_BLOCK_COST_CLVM
+                )
+                if error is not None:
+                    raise ValueError(f"Error: {error}")
+
+                puzzle_ser: SerializedProgram = SerializedProgram.from_program(Program.to(puzzle))
+                solution_ser: SerializedProgram = SerializedProgram.from_program(Program.to(solution))
+
+                coin_spend = CoinSpend(coin_record.coin, puzzle_ser, solution_ser)
+
+                coin_record_dictionary['coin_spend'] = coin_spend
+
+            coin_record_with_spends.append(coin_record_dictionary)
+
+        last_id_hex = None
+        if last_id is not None:
+            last_id_hex = last_id.hex()
+
+
+        return {"coin_records": coin_record_with_spends, "last_id": last_id_hex, "total_coin_count": total_coin_count}
 
     async def get_coin_record_by_name(self, request: Dict) -> Optional[Dict]:
         """
@@ -648,6 +715,9 @@ class FullNodeRpcApi:
         if coin_record is None or not coin_record.spent or coin_record.spent_block_index != height:
             raise ValueError(f"Invalid height {height}. coin record {coin_record}")
 
+        start = datetime.now()
+        
+
         header_hash = self.service.blockchain.height_to_hash(height)
         assert header_hash is not None
         block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
@@ -662,6 +732,15 @@ class FullNodeRpcApi:
         )
         if error is not None:
             raise ValueError(f"Error: {error}")
+
+        end = datetime.now()
+
+        difference = (end - start)
+
+        total_seconds = difference.total_seconds()
+        self.total_compute_time += total_seconds
+        self.total_queries += 1
+        log = logging.getLogger(__name__)
 
         puzzle_ser: SerializedProgram = SerializedProgram.from_program(Program.to(puzzle))
         solution_ser: SerializedProgram = SerializedProgram.from_program(Program.to(solution))
