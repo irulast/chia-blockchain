@@ -291,9 +291,10 @@ class CoinStore:
         count_query = (
             "SELECT COUNT(*) as coin_count "
             "FROM coin_record INDEXED BY coin_puzzle_hash "
-            f'WHERE puzzle_hash in ({"?," * (len(puzzle_hashes) - 1)}?)'
+            f'WHERE puzzle_hash in ({"?," * (len(puzzle_hashes) - 1)}?) '
+            f"AND confirmed_index>=? AND confirmed_index<?" 
         )
-        count_query_params = puzzle_hashes_db
+        count_query_params = puzzle_hashes_db+ (start_height, end_height)
         
 
         query = (
