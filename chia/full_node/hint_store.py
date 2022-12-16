@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Any
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.util.db_wrapper import DBWrapper2
 import logging
@@ -27,6 +27,27 @@ class HintStore:
     async def get_coin_ids(self, hint: bytes) -> List[bytes32]:
         async with self.db_wrapper.read_db() as conn:
             cursor = await conn.execute("SELECT coin_id from hints WHERE hint=?", (hint,))
+            rows = await cursor.fetchall()
+            await cursor.close()
+        coin_ids = []
+        for row in rows:
+            coin_ids.append(row[0])
+        return coin_ids
+
+    async def get_coin_ids_by_hints(self, hints: List[bytes]) -> List[bytes32]:
+        hints = list(hints)
+
+        if len(hints) == 0:
+            return []
+
+        hints_db: Tuple[Any, ...]
+        if self.db_wrapper.db_version == 2:
+            hints_db = tuple(hints)
+        else:
+            hints_db = tuple([hint.hex() for hint in hints])
+
+        async with self.db_wrapper.read_db() as conn:
+            cursor = await conn.execute(f'SELECT coin_id FROM hints WHERE hint in ({"?," * (len(hints) - 1)}?)', hints_db)
             rows = await cursor.fetchall()
             await cursor.close()
         coin_ids = []
