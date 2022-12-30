@@ -64,6 +64,7 @@ class FullNodeRpcApi:
             "/get_coin_records_by_parent_ids": self.get_coin_records_by_parent_ids,
             "/get_coin_records_by_hint": self.get_coin_records_by_hint,
             "/get_coin_records_by_hints": self.get_coin_records_by_hints,
+            "/get_coin_records_by_hints_paginated": self.get_coin_records_by_hints_paginated,
             "/get_hints_by_coin_ids": self.get_hints_by_coin_ids,
             "/push_tx": self.push_tx,
             "/get_puzzle_and_solution": self.get_puzzle_and_solution,
@@ -714,6 +715,49 @@ class FullNodeRpcApi:
         coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**kwargs)
 
         return {"coin_records": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in coin_records]}
+    
+    async def get_coin_records_by_hints_paginated(self, request: Dict) -> Optional[Dict]:
+        """
+        Retrieves coins by hints, by default returns unspent coins.
+        """
+        if "hints" not in request:
+            raise ValueError("Hints not in request")
+        if "page_size" not in request:
+            raise ValueError("page_size not in request")
+
+        if self.service.hint_store is None:
+            return {"coin_records": []}
+
+        kwargs_hints: Dict[str, Any] = {
+            "hints": [bytes32.from_hexstr(hint) for hint in request["hints"]],
+            "page_size": request["page_size"],
+        }
+
+        if "last_id" in request:
+            kwargs_hints["last_id"] = hexstr_to_bytes(request["last_id"])
+
+        names, last_id, total_coin_count = await self.service.hint_store.get_coin_ids_by_hints_paginated(**kwargs_hints)
+
+        kwargs: Dict[str, Any] = {
+            "include_spent_coins": False,
+            "names": names,
+        }
+
+        if "start_height" in request:
+            kwargs["start_height"] = uint32(request["start_height"])
+        if "end_height" in request:
+            kwargs["end_height"] = uint32(request["end_height"])
+
+        if "include_spent_coins" in request:
+            kwargs["include_spent_coins"] = request["include_spent_coins"]
+
+        coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**kwargs)
+
+        last_id_hex = None
+        if last_id is not None:
+            last_id_hex = last_id.hex()
+
+        return {"coin_records": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in coin_records], "last_id": last_id_hex, "total_coin_count": total_coin_count}
     
     async def get_hints_by_coin_ids(self, request: Dict) -> Optional[Dict]:
         """
