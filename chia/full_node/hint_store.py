@@ -40,11 +40,7 @@ class HintStore:
         if len(hints) == 0:
             return []
 
-        hints_db: Tuple[Any, ...]
-        if self.db_wrapper.db_version == 2:
-            hints_db = tuple(hints)
-        else:
-            hints_db = tuple([hint for hint in hints])
+        hints_db = tuple(hints)
 
         async with self.db_wrapper.read_db() as conn:
             cursor = await conn.execute(f'SELECT coin_id FROM hints WHERE hint in ({"?," * (len(hints) - 1)}?)', hints_db)
@@ -61,11 +57,7 @@ class HintStore:
         if len(coin_ids) == 0:
             return []
 
-        coin_ids_db: Tuple[Any, ...]
-        if self.db_wrapper.db_version == 2:
-            coin_ids_db = tuple(coin_ids)
-        else:
-            coin_ids_db = tuple([coin_id for coin_id in coin_ids])
+        coin_ids_db = tuple(coin_ids)
 
         async with self.db_wrapper.read_db() as conn:
             cursor = await conn.execute(
