@@ -64,6 +64,7 @@ class FullNodeRpcApi:
             "/get_coin_records_by_parent_ids": self.get_coin_records_by_parent_ids,
             "/get_coin_records_by_hint": self.get_coin_records_by_hint,
             "/get_coin_records_by_hints": self.get_coin_records_by_hints,
+            "/get_hints_by_coin_ids": self.get_hints_by_coin_ids,
             "/push_tx": self.push_tx,
             "/get_puzzle_and_solution": self.get_puzzle_and_solution,
             # Mempool
@@ -713,6 +714,25 @@ class FullNodeRpcApi:
         coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**kwargs)
 
         return {"coin_records": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in coin_records]}
+    
+    async def get_hints_by_coin_ids(self, request: Dict) -> Optional[Dict]:
+        """
+        Retrieves hints by coin ids, by default returns unspent coins.
+        """
+        if ("coin_ids" not in request):
+            raise ValueError("coin_ids not in request")
+        
+        if self.service.hint_store is None:
+            return {"coin_id_hints": []}
+        
+        coin_id_hints_dict = await self.service.hint_store.get_hints_for_coin_ids([hexstr_to_bytes(coin_id) for coin_id in request["coin_ids"]])
+
+        json_dict = dict()
+        for coin_id in coin_id_hints_dict:
+            json_dict[coin_id.hex()] = coin_id_hints_dict[coin_id].hex()
+
+        return {"coin_id_hints": json_dict}
+
 
     async def push_tx(self, request: Dict) -> Optional[Dict]:
         if "spend_bundle" not in request:
