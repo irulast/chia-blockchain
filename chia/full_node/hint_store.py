@@ -52,6 +52,8 @@ class HintStore:
         return coin_ids
     
     async def get_hints_for_coin_ids(self, coin_ids: List[bytes32]) -> Dict[bytes32, bytes]:
+        coin_ids = list(coin_ids)
+
         if len(coin_ids) == 0:
             return []
 
