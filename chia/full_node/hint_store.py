@@ -44,7 +44,7 @@ class HintStore:
         if self.db_wrapper.db_version == 2:
             hints_db = tuple(hints)
         else:
-            hints_db = tuple([hint.hex() for hint in hints])
+            hints_db = tuple([hint for hint in hints])
 
         async with self.db_wrapper.read_db() as conn:
             cursor = await conn.execute(f'SELECT coin_id FROM hints WHERE hint in ({"?," * (len(hints) - 1)}?)', hints_db)
@@ -65,10 +65,14 @@ class HintStore:
         if self.db_wrapper.db_version == 2:
             coin_ids_db = tuple(coin_ids)
         else:
-            coin_ids_db = tuple([coin_id.hex() for coin_id in coin_ids])
+            coin_ids_db = tuple([coin_id for coin_id in coin_ids])
 
         async with self.db_wrapper.read_db() as conn:
-            cursor = await conn.execute(f'SELECT coin_id, hint FROM hints WHERE coin_id in ({"?," * (len(coin_ids) - 1)}?)', coin_ids_db)
+            cursor = await conn.execute(
+                f'SELECT coin_id, hint FROM hints INDEXED BY sqlite_autoindex_hints_1 '
+                f'WHERE coin_id in ({"?," * (len(coin_ids) - 1)}?)', 
+                coin_ids_db
+            )
             rows = await cursor.fetchall()
             await cursor.close()
         coin_id_hint_dict = dict()
