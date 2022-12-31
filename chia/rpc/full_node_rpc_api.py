@@ -49,6 +49,7 @@ class FullNodeRpcApi:
             "/get_unfinished_block_headers": self.get_unfinished_block_headers,
             "/get_network_space": self.get_network_space,
             "/get_additions_and_removals": self.get_additions_and_removals,
+            "/get_additions_and_removals_with_hints": self.get_additions_and_removals_with_hints,
             # this function is just here for backwards-compatibility. It will probably
             # be removed in the future
             "/get_initial_freeze_period": self.get_initial_freeze_period,
@@ -62,6 +63,9 @@ class FullNodeRpcApi:
             "/get_coin_records_by_names": self.get_coin_records_by_names,
             "/get_coin_records_by_parent_ids": self.get_coin_records_by_parent_ids,
             "/get_coin_records_by_hint": self.get_coin_records_by_hint,
+            "/get_coin_records_by_hints": self.get_coin_records_by_hints,
+            "/get_coin_records_by_hints_paginated": self.get_coin_records_by_hints_paginated,
+            "/get_hints_by_coin_ids": self.get_hints_by_coin_ids,
             "/push_tx": self.push_tx,
             "/get_puzzle_and_solution": self.get_puzzle_and_solution,
             # Mempool
@@ -683,6 +687,97 @@ class FullNodeRpcApi:
 
         return {"coin_records": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in coin_records]}
 
+    async def get_coin_records_by_hints(self, request: Dict) -> Optional[Dict]:
+        """
+        Retrieves coins by hints, by default returns unspent coins.
+        """
+        if "hints" not in request:
+            raise ValueError("Hints not in request")
+
+        if self.service.hint_store is None:
+            return {"coin_records": []}
+
+        names: List[bytes32] = await self.service.hint_store.get_coin_ids_by_hints(bytes32.from_hexstr(hint) for hint in request["hints"])
+
+        kwargs: Dict[str, Any] = {
+            "include_spent_coins": False,
+            "names": names,
+        }
+
+        if "start_height" in request:
+            kwargs["start_height"] = uint32(request["start_height"])
+        if "end_height" in request:
+            kwargs["end_height"] = uint32(request["end_height"])
+
+        if "include_spent_coins" in request:
+            kwargs["include_spent_coins"] = request["include_spent_coins"]
+
+        coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**kwargs)
+
+        return {"coin_records": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in coin_records]}
+    
+    async def get_coin_records_by_hints_paginated(self, request: Dict) -> Optional[Dict]:
+        """
+        Retrieves coins by hints, by default returns unspent coins.
+        """
+        if "hints" not in request:
+            raise ValueError("Hints not in request")
+        if "page_size" not in request:
+            raise ValueError("page_size not in request")
+
+        if self.service.hint_store is None:
+            return {"coin_records": []}
+
+        kwargs_hints: Dict[str, Any] = {
+            "hints": [bytes32.from_hexstr(hint) for hint in request["hints"]],
+            "page_size": request["page_size"],
+        }
+
+        if "last_id" in request:
+            kwargs_hints["last_id"] = hexstr_to_bytes(request["last_id"])
+
+        names, last_id, total_coin_count = await self.service.hint_store.get_coin_ids_by_hints_paginated(**kwargs_hints)
+
+        kwargs: Dict[str, Any] = {
+            "include_spent_coins": False,
+            "names": names,
+        }
+
+        if "start_height" in request:
+            kwargs["start_height"] = uint32(request["start_height"])
+        if "end_height" in request:
+            kwargs["end_height"] = uint32(request["end_height"])
+
+        if "include_spent_coins" in request:
+            kwargs["include_spent_coins"] = request["include_spent_coins"]
+
+        coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**kwargs)
+
+        last_id_hex = None
+        if last_id is not None:
+            last_id_hex = last_id.hex()
+
+        return {"coin_records": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in coin_records], "last_id": last_id_hex, "total_coin_count": total_coin_count}
+    
+    async def get_hints_by_coin_ids(self, request: Dict) -> Optional[Dict]:
+        """
+        Retrieves hints by coin ids, by default returns unspent coins.
+        """
+        if ("coin_ids" not in request):
+            raise ValueError("coin_ids not in request")
+        
+        if self.service.hint_store is None:
+            return {"coin_id_hints": []}
+        
+        coin_id_hints_dict = await self.service.hint_store.get_hints_for_coin_ids([hexstr_to_bytes(coin_id) for coin_id in request["coin_ids"]])
+
+        json_dict = dict()
+        for coin_id in coin_id_hints_dict:
+            json_dict[coin_id.hex()] = coin_id_hints_dict[coin_id].hex()
+
+        return {"coin_id_hints": json_dict}
+
+
     async def push_tx(self, request: Dict) -> Optional[Dict]:
         if "spend_bundle" not in request:
             raise ValueError("Spend bundle not in request")
@@ -764,6 +859,46 @@ class FullNodeRpcApi:
         return {
             "additions": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in additions],
             "removals": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in removals],
+        }
+
+    async def get_additions_and_removals_with_hints(self, request: Dict) -> Optional[Dict]:
+        if "header_hash" not in request:
+            raise ValueError("No header_hash in request")
+        header_hash = bytes32.from_hexstr(request["header_hash"])
+
+        block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
+        if block is None:
+            raise ValueError(f"Block {header_hash.hex()} not found")
+
+        async with self.service._blockchain_lock_low_priority:
+            if self.service.blockchain.height_to_hash(block.height) != header_hash:
+                raise ValueError(f"Block at {header_hash.hex()} is no longer in the blockchain (it's in a fork)")
+            additions: List[CoinRecord] = await self.service.coin_store.get_coins_added_at_height(block.height)
+            removals: List[CoinRecord] = await self.service.coin_store.get_coins_removed_at_height(block.height)
+
+        additions_coin_ids = [cr.name for cr in additions]
+        removals_coin_ids = [cr.name for cr in removals]
+
+        additions_hint_dict = await self.service.hint_store.get_hints_for_coin_ids(additions_coin_ids)
+        removals_hint_dict = await self.service.hint_store.get_hints_for_coin_ids(removals_coin_ids)
+        
+        additions_list = []
+        for cr in additions:
+            cr_json = coin_record_dict_backwards_compat(cr.to_json_dict())
+            if cr.name in additions_hint_dict:
+                cr_json['hint'] = additions_hint_dict[cr.name]
+            additions_list.append(cr_json)
+        
+        removals_list = []
+        for cr in removals:
+            cr_json = coin_record_dict_backwards_compat(cr.to_json_dict())
+            if cr.name in removals_hint_dict:
+                cr_json['hint'] = removals_hint_dict[cr.name]
+            removals_list.append(cr_json)
+
+        return {
+            "additions": additions_list,
+            "removals": removals_list,
         }
 
     async def get_all_mempool_tx_ids(self, request: Dict) -> Optional[Dict]:
