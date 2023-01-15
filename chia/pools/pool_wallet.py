@@ -28,6 +28,7 @@ from chia.types.blockchain_format.program import Program, SerializedProgram
 from chia.types.coin_record import CoinRecord
 from chia.types.coin_spend import CoinSpend
 from chia.types.spend_bundle import SpendBundle
+from chia.protocols.wallet_protocol import CoinState
 
 from chia.pools.pool_puzzles import (
     create_waiting_room_inner_puzzle,
@@ -257,6 +258,17 @@ class PoolWallet:
         pool_config_dict[new_config.launcher_id] = new_config
         await update_pool_config(self.wallet_state_manager.root_path, list(pool_config_dict.values()))
 
+    async def delete_pool_config(self) -> None:
+        current_state: PoolWalletInfo = await self.get_current_state()
+        pool_config_list: List[PoolWalletConfig] = load_pool_config(self.wallet_state_manager.root_path)
+        pool_config_dict: Dict[bytes32, PoolWalletConfig] = {c.launcher_id: c for c in pool_config_list}
+
+        launcher_id = current_state.launcher_id
+
+        if launcher_id in pool_config_dict:
+            del pool_config_dict[launcher_id]
+            await update_pool_config(self.wallet_state_manager.root_path, list(pool_config_dict.values()))
+
     @staticmethod
     def get_next_interesting_coin(spend: CoinSpend) -> Optional[Coin]:
         # CoinSpend of one of the coins that we cared about. This coin was spent in a block, but might be in a reorg
@@ -301,7 +313,6 @@ class PoolWallet:
                     self.next_transaction_fee = uint64(0)
                 break
 
-        await self.update_pool_config()
         return True
 
     async def rewind(self, block_height: int) -> bool:
@@ -332,8 +343,7 @@ class PoolWallet:
         wallet_state_manager: Any,
         wallet: Wallet,
         launcher_coin_id: bytes32,
-        block_spends: List[CoinSpend],
-        block_height: uint32,
+        peer: WSChiaConnection,
         *,
         name: str = None,
     ) -> PoolWallet:
@@ -353,15 +363,32 @@ class PoolWallet:
             standard_wallet=wallet,
         )
 
-        launcher_spend: Optional[CoinSpend] = None
-        for spend in block_spends:
-            if spend.coin.name() == launcher_coin_id:
-                launcher_spend = spend
-        assert launcher_spend is not None
-        await wallet_state_manager.pool_store.add_spend(pool_wallet.wallet_id, launcher_spend, block_height)
+        coin_states: List[CoinState] = await wallet_state_manager.wallet_node.get_coin_state(
+            [launcher_coin_id], peer=peer
+        )
+        next_coin_state = coin_states[0]        
+        while next_coin_state.spent_height != None:
+            coin_spend = await wallet_state_manager.wallet_node.fetch_puzzle_solution(
+                    next_coin_state.spent_height, next_coin_state.coin, peer
+                )
+            await wallet_state_manager.pool_store.add_spend(pool_wallet.wallet_id, coin_spend, next_coin_state.spent_height)
+            next_singleton_coin = get_most_recent_singleton_coin_from_coin_spend(coin_spend)
+            coin_states = await wallet_state_manager.wallet_node.get_coin_state(
+                [next_singleton_coin.name()], peer=peer
+            )
+            next_coin_state = coin_states[0]
+
+        current_state = await pool_wallet.get_current_state()
+
+        owner_sk_and_index = find_owner_sk([wallet_state_manager.private_key], current_state.current.owner_pubkey)
+
+        if owner_sk_and_index == None:
+            await wallet_state_manager.user_store.delete_wallet(pool_wallet.wallet_id)
+            return None
+
         await pool_wallet.update_pool_config()
 
-        p2_puzzle_hash: bytes32 = (await pool_wallet.get_current_state()).p2_singleton_puzzle_hash
+        p2_puzzle_hash: bytes32 = current_state.p2_singleton_puzzle_hash
         await wallet_state_manager.add_new_wallet(pool_wallet, pool_wallet.wallet_id, create_puzzle_hashes=False)
         await wallet_state_manager.add_interested_puzzle_hashes([p2_puzzle_hash], [pool_wallet.wallet_id])
 
@@ -386,6 +413,7 @@ class PoolWallet:
             wallet_id=wallet_info.id,
             standard_wallet=wallet,
         )
+
         return pool_wallet
 
     @staticmethod

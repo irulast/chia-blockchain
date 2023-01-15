@@ -25,6 +25,7 @@ POOL_WAITING_ROOM_MOD = load_clvm_maybe_recompile("pool_waitingroom_innerpuz.clv
 POOL_MEMBER_MOD = load_clvm_maybe_recompile("pool_member_innerpuz.clvm")
 P2_SINGLETON_MOD = load_clvm_maybe_recompile("p2_singleton_or_delayed_puzhash.clvm")
 POOL_OUTER_MOD = SINGLETON_MOD
+SINGLETON_OUTPUT_INNER_PUZZLE = load_clvm_maybe_recompile("singleton_output_inner_puzzle.clvm")
 
 POOL_MEMBER_HASH = POOL_MEMBER_MOD.get_tree_hash()
 POOL_WAITING_ROOM_HASH = POOL_WAITING_ROOM_MOD.get_tree_hash()
@@ -368,40 +369,43 @@ def pool_state_from_extra_data(extra_data: Program) -> Optional[PoolState]:
 
 
 def solution_to_pool_state(full_spend: CoinSpend) -> Optional[PoolState]:
-    full_solution_ser: SerializedProgram = full_spend.solution
-    full_solution: Program = Program.from_bytes(bytes(full_solution_ser))
+    try:
+        full_solution_ser: SerializedProgram = full_spend.solution
+        full_solution: Program = Program.from_bytes(bytes(full_solution_ser))
 
-    if full_spend.coin.puzzle_hash == SINGLETON_LAUNCHER_HASH:
-        # Launcher spend
-        extra_data: Program = full_solution.rest().rest().first()
-        return pool_state_from_extra_data(extra_data)
+        if full_spend.coin.puzzle_hash == SINGLETON_LAUNCHER_HASH:
+            # Launcher spend
+            extra_data: Program = full_solution.rest().rest().first()
+            return pool_state_from_extra_data(extra_data)
 
-    # Not launcher spend
-    inner_solution: Program = full_solution.rest().rest().first()
+        # Not launcher spend
+        inner_solution: Program = full_solution.rest().rest().first()
 
-    # Spend which is not absorb, and is not the launcher
-    num_args = len(inner_solution.as_python())
-    assert num_args in (2, 3)
+        # Spend which is not absorb, and is not the launcher
+        num_args = len(inner_solution.as_python())
+        assert num_args in (2, 3)
 
-    if num_args == 2:
-        # pool member
-        if inner_solution.rest().first().as_int() != 0:
-            return None
+        if num_args == 2:
+            # pool member
+            if inner_solution.rest().first().as_int() != 0:
+                return None
 
-        # This is referred to as p1 in the chialisp code
-        # spend_type is absorbing money if p1 is a cons box, spend_type is escape if p1 is an atom
-        # TODO: The comment above, and in the CLVM, seems wrong
-        extra_data = inner_solution.first()
-        if isinstance(extra_data.as_python(), bytes):
-            # Absorbing
-            return None
-        return pool_state_from_extra_data(extra_data)
-    else:
-        # pool waitingroom
-        if inner_solution.first().as_int() == 0:
-            return None
-        extra_data = inner_solution.rest().first()
-        return pool_state_from_extra_data(extra_data)
+            # This is referred to as p1 in the chialisp code
+            # spend_type is absorbing money if p1 is a cons box, spend_type is escape if p1 is an atom
+            # TODO: The comment above, and in the CLVM, seems wrong
+            extra_data = inner_solution.first()
+            if isinstance(extra_data.as_python(), bytes):
+                # Absorbing
+                return None
+            return pool_state_from_extra_data(extra_data)
+        else:
+            # pool waitingroom
+            if inner_solution.first().as_int() == 0:
+                return None
+            extra_data = inner_solution.rest().first()
+            return pool_state_from_extra_data(extra_data)
+    except:
+        return None
 
 
 def pool_state_to_inner_puzzle(

@@ -18,7 +18,7 @@ from chia.consensus.coinbase import farmer_parent_id, pool_parent_id
 from chia.consensus.constants import ConsensusConstants
 from chia.data_layer.data_layer_wallet import DataLayerWallet
 from chia.data_layer.dl_wallet_store import DataLayerStore
-from chia.pools.pool_puzzles import SINGLETON_LAUNCHER_HASH, solution_to_pool_state
+from chia.pools.pool_puzzles import SINGLETON_LAUNCHER_HASH, SINGLETON_OUTPUT_INNER_PUZZLE, solution_to_pool_state
 from chia.pools.pool_wallet import PoolWallet
 from chia.protocols import wallet_protocol
 from chia.protocols.wallet_protocol import CoinState
@@ -51,6 +51,7 @@ from chia.wallet.derive_keys import (
     master_sk_to_wallet_sk_intermediate,
     master_sk_to_wallet_sk_unhardened,
     master_sk_to_wallet_sk_unhardened_intermediate,
+    find_owner_sk
 )
 from chia.wallet.did_wallet.did_info import DIDInfo
 from chia.wallet.did_wallet.did_wallet import DIDWallet
@@ -86,6 +87,7 @@ from chia.wallet.wallet_puzzle_store import WalletPuzzleStore
 from chia.wallet.wallet_retry_store import WalletRetryStore
 from chia.wallet.wallet_transaction_store import WalletTransactionStore
 from chia.wallet.wallet_user_store import WalletUserStore
+from chia.pools.pool_wallet_info import PoolWalletInfo
 
 
 class WalletStateManager:
@@ -240,6 +242,11 @@ class WalletStateManager:
                     self.main_wallet,
                     wallet_info,
                 )
+                current_state = await wallet.get_current_state()
+                owner_sk_and_index = find_owner_sk([self.private_key], current_state.current.owner_pubkey)
+                if owner_sk_and_index == None:
+                    await self.user_store.delete_wallet(wallet.wallet_id)
+                    break
             elif wallet_info.type == WalletType.DATA_LAYER:
                 wallet = await DataLayerWallet.create(
                     self,
@@ -647,6 +654,11 @@ class WalletStateManager:
         did_curried_args = match_did_puzzle(uncurried.mod, uncurried.args)
         if did_curried_args is not None:
             return await self.handle_did(did_curried_args, parent_coin_state, coin_state, coin_spend, peer)
+        
+        # Check if coin is sibling of plotNFT
+        if uncurried.args.rest().first() == SINGLETON_OUTPUT_INNER_PUZZLE:
+            self.log.info('FOUND SIBLING COIN')
+            return await self.handle_plotnft_sibling(parent_coin_state, coin_state, coin_spend, peer)
 
         await self.notification_manager.potentially_add_new_notification(coin_state, coin_spend)
 
@@ -740,6 +752,58 @@ class WalletStateManager:
                     parent_coin_state.coin.puzzle_hash,
                 )
                 self.state_changed("added_stray_cat")
+        return wallet_id, wallet_type
+    
+    async def handle_plotnft_sibling(
+        self,
+        parent_coin_state: CoinState,
+        coin_state: CoinState,
+        coin_spend: CoinSpend,
+        peer: WSChiaConnection,
+    ) -> Tuple[Optional[uint32], Optional[WalletType]]:
+        self.log.info('HANDLING SIBLING COIN')
+        wallet_id = None
+        wallet_type = None
+
+        hint_list = compute_coin_hints(coin_spend)
+
+        derivation_record = None
+        for hint in hint_list:
+            derivation_record = await self.puzzle_store.get_derivation_record_for_puzzle_hash(bytes32(hint))
+            if derivation_record is not None:
+                break
+        
+        if derivation_record is None:
+            self.log.info(f"Received state for the coin that doesn't belong to us {coin_state}")
+        else:
+            launcher_id = coin_state.coin.puzzle_hash
+
+            if await self.have_a_pool_wallet_with_launched_id(launcher_id):
+                return None, None
+
+            coin_states: List[CoinState] = await self.wallet_node.get_coin_state(
+                [launcher_id], peer=peer
+            )
+
+            launcher_state = coin_states[0]
+            launcher_spend: CoinSpend = await self.wallet_node.fetch_puzzle_solution(
+                launcher_state.spent_height, launcher_state.coin, peer
+            )
+            self.log.info('CREATING TRANSFERRED PLOTNFT')
+            pool_wallet = await PoolWallet.create(
+                self,
+                self.main_wallet,
+                launcher_id,
+                peer,
+                name="pool_wallet",
+            )
+
+            if pool_wallet == None:
+                    return None, None
+
+            wallet_id = pool_wallet.id()
+            wallet_type = WalletType(pool_wallet.type())
+            self.state_changed("wallet_created")
         return wallet_id, wallet_type
 
     async def handle_did(
@@ -1216,7 +1280,10 @@ class WalletStateManager:
 
                         if record.wallet_type == WalletType.POOLING_WALLET:
                             if coin_state.spent_height is not None and coin_state.coin.amount == uint64(1):
-                                wallet = self.wallets[uint32(record.wallet_id)]
+                                wallet_id = record.wallet_id
+                                if uint32(wallet_id) not in self.wallets:
+                                    break
+                                wallet = self.wallets[uint32(wallet_id)]
                                 assert isinstance(wallet, PoolWallet)
                                 curr_coin_state: CoinState = coin_state
 
@@ -1229,6 +1296,20 @@ class WalletStateManager:
                                     )
                                     if not success:
                                         break
+                                    
+                                    pool_wallet_info: PoolWalletInfo = await wallet.get_current_state()
+
+                                    owner_sk_and_index = find_owner_sk([self.private_key], pool_wallet_info.current.owner_pubkey)
+
+                                    if owner_sk_and_index == None:
+                                        self.log.info('DELETED TRANSFERRED PLOTNFT')
+                                        await wallet.delete_pool_config()
+                                        await self.user_store.delete_wallet(wallet_id)
+                                        self.wallets.pop(wallet_id)
+                                        break
+                                    
+                                    await wallet.update_pool_config()
+
                                     new_singleton_coin: Optional[Coin] = wallet.get_next_interesting_coin(cs)
                                     if new_singleton_coin is None:
                                         # No more singleton (maybe destroyed?)
@@ -1329,10 +1410,13 @@ class WalletStateManager:
                                 self,
                                 self.main_wallet,
                                 child.coin.name(),
-                                [launcher_spend],
-                                uint32(child.spent_height),
+                                peer,
                                 name="pool_wallet",
                             )
+
+                            if pool_wallet == None:
+                                continue
+                            
                             launcher_spend_additions = launcher_spend.additions()
                             assert len(launcher_spend_additions) == 1
                             coin_added = launcher_spend_additions[0]
