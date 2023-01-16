@@ -99,9 +99,18 @@ class FullNodeRpcApi:
                     "metrics",
                 )
             )
+            payloads.append(
+                create_payload_dict(
+                    "get_blockchain_state",
+                    data,
+                    self.service_name,
+                    "iriga_node_mgr",
+                )
+            )
 
         if change in ("block", "signage_point"):
             payloads.append(create_payload_dict(change, change_data, self.service_name, "metrics"))
+            payloads.append(create_payload_dict(change, change_data, self.service_name, "iriga_node_mgr"))
 
         return payloads
 
