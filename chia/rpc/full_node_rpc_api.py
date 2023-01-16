@@ -10,6 +10,7 @@ from chia.types.blockchain_format.program import Program, SerializedProgram
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_record import CoinRecord
 from chia.types.coin_spend import CoinSpend
+from chia.types.blockchain_format.coin import Coin
 from chia.types.full_block import FullBlock
 from chia.types.generator_types import BlockGenerator
 from chia.types.mempool_inclusion_status import MempoolInclusionStatus
@@ -575,31 +576,62 @@ class FullNodeRpcApi:
         coin_records, last_id, total_coin_count = await self.service.blockchain.coin_store.get_coin_records_by_puzzle_hashes_paginated(**kwargs)
         coin_record_with_spends = []
 
+        parent_id_to_child_id_dict: Dict[bytes32, bytes32] = {}
+        for coin_record in coin_records:
+            parent_id_to_child_id_dict[coin_record.coin.parent_coin_info] = coin_record.coin.name()
+
+        parent_coin_kwargs: Dict[str, Any] = {
+            "include_spent_coins": True,
+            "names": list(parent_id_to_child_id_dict.keys())
+        }
+
+        parent_coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**parent_coin_kwargs)
+
+        child_id_to_parent_coin_dict: Dict[bytes32, Coin] = {}
+        for parent_coin_record in parent_coin_records:
+            child_id = parent_id_to_child_id_dict[parent_coin_record.coin.name()]
+            child_id_to_parent_coin_dict[child_id] = parent_coin_record.coin
+
         for coin_record in coin_records:
             coin_record_dictionary = coin_record_dict_backwards_compat(coin_record.to_json_dict())
+            
             if coin_record.spent_block_index > 0:
                 header_hash = self.service.blockchain.height_to_hash(coin_record.spent_block_index)
-                assert header_hash is not None
-                block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
+            else:
+                header_hash = self.service.blockchain.height_to_hash(coin_record.confirmed_block_index)
+            assert header_hash is not None
+            block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
 
-                if block is None or block.transactions_generator is None:
-                    raise ValueError("Invalid block or block generator")
-
+            if block is None or block.transactions_generator is None:
+                coin_spend = None
+            else:
                 block_generator: Optional[BlockGenerator] = await self.service.blockchain.get_block_generator(block)
                 assert block_generator is not None
-                error, puzzle, solution = get_puzzle_and_solution_for_coin(
-                    block_generator, coin_record.coin.name(), self.service.constants.MAX_BLOCK_COST_CLVM
-                )
+                if coin_record.spent_block_index > 0:
+                    error, puzzle, solution = get_puzzle_and_solution_for_coin(
+                        block_generator, coin_record.coin.name(), self.service.constants.MAX_BLOCK_COST_CLVM
+                    )
+                else:
+                    error, puzzle, solution = get_puzzle_and_solution_for_coin(
+                        block_generator, coin_record.coin.parent_coin_info, self.service.constants.MAX_BLOCK_COST_CLVM
+                    )
                 if error is not None:
                     raise ValueError(f"Error: {error}")
 
                 puzzle_ser: SerializedProgram = SerializedProgram.from_program(Program.to(puzzle))
                 solution_ser: SerializedProgram = SerializedProgram.from_program(Program.to(solution))
 
-                coin_spend = CoinSpend(coin_record.coin, puzzle_ser, solution_ser)
+                if coin_record.spent_block_index > 0:
+                    coin_spend = CoinSpend(coin_record.coin, puzzle_ser, solution_ser)
+                else:
+                    parent_coin = child_id_to_parent_coin_dict[coin_record.coin.name()]
+                    coin_spend = CoinSpend(parent_coin, puzzle_ser, solution_ser)
 
+            if coin_record.spent_block_index > 0:
                 coin_record_dictionary['coin_spend'] = coin_spend
-
+            else:
+                coin_record_dictionary['parent_coin_spend'] = coin_spend
+            
             coin_record_with_spends.append(coin_record_dictionary)
 
         last_id_hex = None
