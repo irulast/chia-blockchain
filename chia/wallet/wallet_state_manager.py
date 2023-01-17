@@ -1294,6 +1294,7 @@ class WalletStateManager:
                                         await wallet.delete_pool_config()
                                         await self.user_store.delete_wallet(wallet_id)
                                         self.wallets.pop(wallet_id)
+                                        self.log.info(f"Removed pool wallet {wallet_id}, Launch_ID: {pool_wallet_info.launcher_id.hex()}")
                                         break
                                     
                                     await wallet.update_pool_config()
