@@ -414,6 +414,13 @@ class PoolWallet:
             standard_wallet=wallet,
         )
 
+        current_state = await pool_wallet.get_current_state()
+        owner_sk_and_index = find_owner_sk([wallet_state_manager.private_key], current_state.current.owner_pubkey)
+        if owner_sk_and_index == None:
+            pool_wallet.log.info('DELETING STORED WALLET')
+            await wallet_state_manager.user_store.delete_wallet(pool_wallet.wallet_id)
+            return None
+
         return pool_wallet
 
     @staticmethod

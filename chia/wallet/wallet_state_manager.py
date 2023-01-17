@@ -242,11 +242,6 @@ class WalletStateManager:
                     self.main_wallet,
                     wallet_info,
                 )
-                current_state = await wallet.get_current_state()
-                owner_sk_and_index = find_owner_sk([self.private_key], current_state.current.owner_pubkey)
-                if owner_sk_and_index == None:
-                    await self.user_store.delete_wallet(wallet.wallet_id)
-                    break
             elif wallet_info.type == WalletType.DATA_LAYER:
                 wallet = await DataLayerWallet.create(
                     self,
