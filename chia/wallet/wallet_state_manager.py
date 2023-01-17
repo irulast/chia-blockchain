@@ -652,8 +652,7 @@ class WalletStateManager:
         
         # Check if coin is sibling of plotNFT
         if uncurried.args.rest().first() == SINGLETON_OUTPUT_INNER_PUZZLE:
-            self.log.info('FOUND SIBLING COIN')
-            return await self.handle_plotnft_sibling(parent_coin_state, coin_state, coin_spend, peer)
+            return await self.handle_plotnft_sibling(coin_state, coin_spend, peer)
 
         await self.notification_manager.potentially_add_new_notification(coin_state, coin_spend)
 
@@ -751,12 +750,16 @@ class WalletStateManager:
     
     async def handle_plotnft_sibling(
         self,
-        parent_coin_state: CoinState,
         coin_state: CoinState,
         coin_spend: CoinSpend,
         peer: WSChiaConnection,
     ) -> Tuple[Optional[uint32], Optional[WalletType]]:
-        self.log.info('HANDLING SIBLING COIN')
+        """
+        Handle the new coin when it is the sibling of a plotNFT
+        :param coin_state: Current coin state
+        :param coin_spend: New coin spend
+        :return: Wallet ID & Wallet Type
+        """
         wallet_id = None
         wallet_type = None
 
@@ -776,15 +779,6 @@ class WalletStateManager:
             if await self.have_a_pool_wallet_with_launched_id(launcher_id):
                 return None, None
 
-            coin_states: List[CoinState] = await self.wallet_node.get_coin_state(
-                [launcher_id], peer=peer
-            )
-
-            launcher_state = coin_states[0]
-            launcher_spend: CoinSpend = await self.wallet_node.fetch_puzzle_solution(
-                launcher_state.spent_height, launcher_state.coin, peer
-            )
-            self.log.info('CREATING TRANSFERRED PLOTNFT')
             pool_wallet = await PoolWallet.create(
                 self,
                 self.main_wallet,
@@ -1297,7 +1291,6 @@ class WalletStateManager:
                                     owner_sk_and_index = find_owner_sk([self.private_key], pool_wallet_info.current.owner_pubkey)
 
                                     if owner_sk_and_index == None:
-                                        self.log.info('DELETED TRANSFERRED PLOTNFT')
                                         await wallet.delete_pool_config()
                                         await self.user_store.delete_wallet(wallet_id)
                                         self.wallets.pop(wallet_id)
