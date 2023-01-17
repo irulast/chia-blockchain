@@ -68,7 +68,7 @@ def initialize_logging(service_name: str, logging_config: Dict, root_path: Path)
     else:
         logger.setLevel(logging.INFO)
 
-    if os.environ['IRIGA_HOST']:
+    if "IRIGA_HOST" in os.environ:
         logger = logging.getLogger()
         handler = HTTPHandler(os.environ["IRIGA_HOST"], os.environ["IRIGA_HTTP_LOG_PATH"])
         logger.addHandler(handler)
