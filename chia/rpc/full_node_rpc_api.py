@@ -69,6 +69,7 @@ class FullNodeRpcApi:
             "/get_hints_by_coin_ids": self.get_hints_by_coin_ids,
             "/push_tx": self.push_tx,
             "/get_puzzle_and_solution": self.get_puzzle_and_solution,
+            "/get_puzzle_and_solutions_by_names":self.get_puzzle_and_solutions_by_names,
             # Mempool
             "/get_all_mempool_tx_ids": self.get_all_mempool_tx_ids,
             "/get_all_mempool_items": self.get_all_mempool_items,
@@ -881,6 +882,54 @@ class FullNodeRpcApi:
         puzzle_ser: SerializedProgram = SerializedProgram.from_program(Program.to(puzzle))
         solution_ser: SerializedProgram = SerializedProgram.from_program(Program.to(solution))
         return {"coin_solution": CoinSpend(coin_record.coin, puzzle_ser, solution_ser)}
+
+    async def get_puzzle_and_solutions_by_names(self, request: Dict) -> Optional[Dict]:
+        if "names" not in request:
+            raise ValueError("Names not in request")
+        kwargs: Dict[str, Any] = {
+            "include_spent_coins": True,
+            "names": [hexstr_to_bytes(name) for name in request["names"]],
+        }
+        if "start_height" in request:
+            kwargs["start_height"] = uint32(request["start_height"])
+        if "end_height" in request:
+            kwargs["end_height"] = uint32(request["end_height"])
+
+
+        coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**kwargs)
+
+        coin_spends = {}
+
+        for coin_record in coin_records:
+            if not coin_record.spent:
+                continue
+            coin_name = coin_record.name
+
+            header_hash = self.service.blockchain.height_to_hash(coin_record.spent_block_index)
+            assert header_hash is not None
+            block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
+
+            if block is None or block.transactions_generator is None:
+                coin_spends[coin_name.hex()] = None
+            else:
+                block_generator: Optional[BlockGenerator] = await self.service.blockchain.get_block_generator(block)
+                assert block_generator is not None
+                error, puzzle, solution = get_puzzle_and_solution_for_coin(
+                    block_generator, coin_name, self.service.constants.MAX_BLOCK_COST_CLVM
+                )
+                if error is not None:
+                    raise ValueError(f"Error: {error}")
+
+            
+            
+
+                puzzle_ser: SerializedProgram = SerializedProgram.from_program(Program.to(puzzle))
+                solution_ser: SerializedProgram = SerializedProgram.from_program(Program.to(solution))
+
+                coin_spends[coin_name.hex()] = CoinSpend(coin_record.coin, puzzle_ser, solution_ser).to_json_dict()
+
+        return {'coin_solutions' : coin_spends}
+        
 
     async def get_additions_and_removals(self, request: Dict) -> Optional[Dict]:
         if "header_hash" not in request:
