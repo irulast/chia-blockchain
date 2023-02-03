@@ -69,7 +69,7 @@ class FullNodeRpcApi:
             "/get_hints_by_coin_ids": self.get_hints_by_coin_ids,
             "/push_tx": self.push_tx,
             "/get_puzzle_and_solution": self.get_puzzle_and_solution,
-            "/get_puzzle_and_solutions_by_names":self.get_puzzle_and_solutions_by_names,
+            "/get_puzzles_and_solutions_by_names":self.get_puzzles_and_solutions_by_names,
             # Mempool
             "/get_all_mempool_tx_ids": self.get_all_mempool_tx_ids,
             "/get_all_mempool_items": self.get_all_mempool_items,
@@ -883,7 +883,7 @@ class FullNodeRpcApi:
         solution_ser: SerializedProgram = SerializedProgram.from_program(Program.to(solution))
         return {"coin_solution": CoinSpend(coin_record.coin, puzzle_ser, solution_ser)}
 
-    async def get_puzzle_and_solutions_by_names(self, request: Dict) -> Optional[Dict]:
+    async def get_puzzles_and_solutions_by_names(self, request: Dict) -> Optional[Dict]:
         if "names" not in request:
             raise ValueError("Names not in request")
         kwargs: Dict[str, Any] = {
