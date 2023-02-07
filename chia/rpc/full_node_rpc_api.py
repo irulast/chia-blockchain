@@ -577,21 +577,26 @@ class FullNodeRpcApi:
         coin_records, last_id, total_coin_count = await self.service.blockchain.coin_store.get_coin_records_by_puzzle_hashes_paginated(**kwargs)
         coin_record_with_spends = []
 
-        parent_id_to_child_id_dict: Dict[bytes32, bytes32] = {}
+        parent_id_to_child_ids_dict: Dict[bytes32, List[bytes32]] = {}
         for coin_record in coin_records:
-            parent_id_to_child_id_dict[coin_record.coin.parent_coin_info] = coin_record.coin.name()
+            parent_id=coin_record.coin.parent_coin_info
+            if parent_id in parent_id_to_child_ids_dict:
+                parent_id_to_child_ids_dict[parent_id] += [coin_record.coin.name()]
+            else:
+                parent_id_to_child_ids_dict[parent_id] = [coin_record.coin.name()]
 
         parent_coin_kwargs: Dict[str, Any] = {
             "include_spent_coins": True,
-            "names": list(parent_id_to_child_id_dict.keys())
+            "names": list(parent_id_to_child_ids_dict.keys())
         }
 
         parent_coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**parent_coin_kwargs)
 
         child_id_to_parent_coin_dict: Dict[bytes32, Coin] = {}
         for parent_coin_record in parent_coin_records:
-            child_id = parent_id_to_child_id_dict[parent_coin_record.coin.name()]
-            child_id_to_parent_coin_dict[child_id] = parent_coin_record.coin
+            child_ids = parent_id_to_child_ids_dict[parent_coin_record.coin.name()]
+            for child_id in child_ids:
+                child_id_to_parent_coin_dict[child_id] = parent_coin_record.coin
 
         for coin_record in coin_records:
             coin_record_dictionary = coin_record_dict_backwards_compat(coin_record.to_json_dict())
@@ -798,21 +803,26 @@ class FullNodeRpcApi:
         #### get parent spends if unspent and spend if spent
         coin_record_with_spends = []
 
-        parent_id_to_child_id_dict: Dict[bytes32, bytes32] = {}
+        parent_id_to_child_ids_dict: Dict[bytes32, List[bytes32]] = {}
         for coin_record in coin_records:
-            parent_id_to_child_id_dict[coin_record.coin.parent_coin_info] = coin_record.coin.name()
+            parent_id=coin_record.coin.parent_coin_info
+            if parent_id in parent_id_to_child_ids_dict:
+                parent_id_to_child_ids_dict[parent_id] += [coin_record.coin.name()]
+            else:
+                parent_id_to_child_ids_dict[parent_id] = [coin_record.coin.name()]
 
         parent_coin_kwargs: Dict[str, Any] = {
             "include_spent_coins": True,
-            "names": list(parent_id_to_child_id_dict.keys())
+            "names": list(parent_id_to_child_ids_dict.keys())
         }
 
         parent_coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**parent_coin_kwargs)
 
         child_id_to_parent_coin_dict: Dict[bytes32, Coin] = {}
         for parent_coin_record in parent_coin_records:
-            child_id = parent_id_to_child_id_dict[parent_coin_record.coin.name()]
-            child_id_to_parent_coin_dict[child_id] = parent_coin_record.coin
+            child_ids = parent_id_to_child_ids_dict[parent_coin_record.coin.name()]
+            for child_id in child_ids:
+                child_id_to_parent_coin_dict[child_id] = parent_coin_record.coin
 
         for coin_record in coin_records:
             coin_record_dictionary = coin_record_dict_backwards_compat(coin_record.to_json_dict())
