@@ -621,22 +621,25 @@ class FullNodeRpcApi:
                     error, puzzle, solution = get_puzzle_and_solution_for_coin(
                         block_generator, coin_record.coin.parent_coin_info, self.service.constants.MAX_BLOCK_COST_CLVM
                     )
-                if error is not None:
-                    raise ValueError(f"Error: {error}")
+                if error is None:
+                    puzzle_ser: SerializedProgram = SerializedProgram.from_program(Program.to(puzzle))
+                    solution_ser: SerializedProgram = SerializedProgram.from_program(Program.to(solution))
 
-                puzzle_ser: SerializedProgram = SerializedProgram.from_program(Program.to(puzzle))
-                solution_ser: SerializedProgram = SerializedProgram.from_program(Program.to(solution))
-
-                if coin_record.spent_block_index > 0:
-                    coin_spend = CoinSpend(coin_record.coin, puzzle_ser, solution_ser)
+                    if coin_record.spent_block_index > 0:
+                        coin_spend = CoinSpend(coin_record.coin, puzzle_ser, solution_ser)
+                    else:
+                        parent_coin = child_id_to_parent_coin_dict[coin_record.coin.name()]
+                        coin_spend = CoinSpend(parent_coin, puzzle_ser, solution_ser)
                 else:
-                    parent_coin = child_id_to_parent_coin_dict[coin_record.coin.name()]
-                    coin_spend = CoinSpend(parent_coin, puzzle_ser, solution_ser)
-
-            if coin_record.spent_block_index > 0:
-                coin_record_dictionary['coin_spend'] = coin_spend
-            else:
-                coin_record_dictionary['parent_coin_spend'] = coin_spend
+                    coin_spend = None
+                    log = logging.getLogger(__name__)
+                    log.error(f"clvm error getting spend for coin({coin_record.name.hex()}): {error}")
+                
+            if coin_spend is not None:
+                if coin_record.spent_block_index > 0:
+                    coin_record_dictionary['coin_spend'] = coin_spend
+                else:
+                    coin_record_dictionary['parent_coin_spend'] = coin_spend
             
             coin_record_with_spends.append(coin_record_dictionary)
 
