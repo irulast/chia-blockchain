@@ -630,17 +630,19 @@ class FullNodeRpcApi:
                     else:
                         parent_coin = child_id_to_parent_coin_dict[coin_record.coin.name()]
                         coin_spend = CoinSpend(parent_coin, puzzle_ser, solution_ser)
+
+                    if coin_record.spent_block_index > 0:
+                        coin_record_dictionary['coin_spend'] = coin_spend
+                    else:
+                        coin_record_dictionary['parent_coin_spend'] = coin_spend
+                elif coin_record.spent_block_index > 0:
+                    error_text = f"error getting spend for SPENT COIN({coin_record.name.hex()}): {error}"
+                    log.error(error_text)
+                    raise ValueError(error_text)
                 else:
-                    coin_spend = None
                     log = logging.getLogger(__name__)
-                    log.error(f"clvm error getting spend for coin({coin_record.name.hex()}): {error}")
-                
-            if coin_spend is not None:
-                if coin_record.spent_block_index > 0:
-                    coin_record_dictionary['coin_spend'] = coin_spend
-                else:
-                    coin_record_dictionary['parent_coin_spend'] = coin_spend
-            
+                    log.error(f"error getting parent spend for unspent coin({coin_record.name.hex()}): {error}")
+                               
             coin_record_with_spends.append(coin_record_dictionary)
 
         last_id_hex = None
