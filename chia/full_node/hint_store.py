@@ -88,7 +88,6 @@ class HintStore:
             total_coin_count = None
 
             if last_id is None:
-                log.error('last_id is None')
                 async with conn.execute(
                     count_query,
                     count_query_params,
