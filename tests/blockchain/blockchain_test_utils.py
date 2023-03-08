@@ -15,7 +15,7 @@ async def check_block_store_invariant(bc: Blockchain):
 
     in_chain = set()
     max_height = -1
-    async with db_wrapper.write_db() as conn:
+    async with db_wrapper.writer_maybe_transaction() as conn:
         async with conn.execute("SELECT height, in_main_chain FROM full_blocks") as cursor:
             rows = await cursor.fetchall()
             for row in rows:
@@ -75,7 +75,11 @@ async def _validate_and_add_block(
         await check_block_store_invariant(blockchain)
         return None
 
-    result, err, _, _ = await blockchain.receive_block(block, results, fork_point_with_peak=fork_point_with_peak)
+    (
+        result,
+        err,
+        _,
+    ) = await blockchain.receive_block(block, results, fork_point_with_peak=fork_point_with_peak)
     await check_block_store_invariant(blockchain)
 
     if expected_error is None and expected_result != ReceiveBlockResult.INVALID_BLOCK:

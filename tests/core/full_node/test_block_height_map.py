@@ -1,14 +1,17 @@
-import pytest
+from __future__ import annotations
+
 import struct
+from typing import Optional
+
+import pytest
+
 from chia.full_node.block_height_map import BlockHeightMap, SesCache
+from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.blockchain_format.sub_epoch_summary import SubEpochSummary
 from chia.util.db_wrapper import DBWrapper2
-
-from tests.util.db_connection import DBConnection
-from chia.types.blockchain_format.sized_bytes import bytes32
-from typing import Optional
-from chia.util.ints import uint8
 from chia.util.files import write_file_async
+from chia.util.ints import uint8
+from tests.util.db_connection import DBConnection
 
 
 def gen_block_hash(height: int) -> bytes32:
@@ -29,7 +32,7 @@ async def new_block(
     is_peak: bool,
     ses: Optional[SubEpochSummary],
 ):
-    async with db.write_db() as conn:
+    async with db.writer_maybe_transaction() as conn:
         if db.db_version == 2:
             cursor = await conn.execute(
                 "INSERT INTO full_blocks VALUES(?, ?, ?, ?)",
@@ -62,7 +65,7 @@ async def new_block(
 
 async def setup_db(db: DBWrapper2):
 
-    async with db.write_db() as conn:
+    async with db.writer_maybe_transaction() as conn:
         if db.db_version == 2:
             await conn.execute(
                 "CREATE TABLE IF NOT EXISTS full_blocks("
@@ -171,7 +174,7 @@ class TestBlockHeightMap:
             # in the DB since we keep loading until we find a match of both hash
             # and sub epoch summary. In this test we have a sub epoch summary
             # every 20 blocks, so we generate the 30 last blocks only
-            async with db_wrapper.write_db() as conn:
+            async with db_wrapper.writer_maybe_transaction() as conn:
                 if db_version == 2:
                     await conn.execute("DROP TABLE full_blocks")
                 else:

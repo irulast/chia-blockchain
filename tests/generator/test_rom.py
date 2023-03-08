@@ -1,15 +1,17 @@
+from __future__ import annotations
+
 from clvm_tools import binutils
 from clvm_tools.clvmc import compile_clvm_text
 
+from chia.consensus.condition_costs import ConditionCost
 from chia.full_node.generator import run_generator_unsafe
 from chia.full_node.mempool_check_conditions import get_name_puzzle_conditions
 from chia.types.blockchain_format.program import Program, SerializedProgram
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.generator_types import BlockGenerator
+from chia.types.spend_bundle_conditions import ELIGIBLE_FOR_DEDUP, Spend
 from chia.util.ints import uint32
 from chia.wallet.puzzles.load_clvm import load_clvm
-from chia.consensus.condition_costs import ConditionCost
-from chia.types.spend_bundle_conditions import Spend
 
 MAX_COST = int(1e15)
 COST_PER_BYTE = int(12000)
@@ -112,8 +114,9 @@ class TestROM:
             puzzle_hash=bytes32.fromhex("9dcf97a184f32623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2"),
             height_relative=None,
             seconds_relative=0,
-            create_coin=[(bytes([0] * 31 + [1]), 500, b"")],
+            create_coin=[(bytes([0] * 31 + [1]), 500, None)],
             agg_sig_me=[],
+            flags=ELIGIBLE_FOR_DEDUP,
         )
 
         assert npc_result.conds.spends == [spend]

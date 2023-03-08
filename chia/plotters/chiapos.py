@@ -2,13 +2,16 @@
 NOTE: This contains duplicate code from `chia.cmds.plots`.
 After `chia plots create` becomes obsolete, consider removing it from there.
 """
+from __future__ import annotations
+
 import asyncio
 import logging
-import pkg_resources
-from chia.plotting.create_plots import create_plots, resolve_plot_keys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import pkg_resources
+
+from chia.plotting.create_plots import create_plots, resolve_plot_keys
 from chia.plotting.util import add_plot_directory, validate_plot_size
 
 log = logging.getLogger(__name__)
@@ -55,4 +58,7 @@ def plot_chia(args, root_path):
     )
     asyncio.run(create_plots(Params(args), plot_keys))
     if not args.exclude_final_dir:
-        add_plot_directory(root_path, args.finaldir)
+        try:
+            add_plot_directory(root_path, args.finaldir)
+        except ValueError as e:
+            print(e)

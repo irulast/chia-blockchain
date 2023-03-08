@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import traceback
@@ -19,6 +21,7 @@ from chia.consensus.pot_iterations import calculate_iterations_quality, is_overf
 from chia.full_node.mempool_check_conditions import get_name_puzzle_conditions
 from chia.types.block_protocol import BlockInfo
 from chia.types.blockchain_format.coin import Coin
+from chia.types.blockchain_format.proof_of_space import verify_and_get_quality_string
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.blockchain_format.sub_epoch_summary import SubEpochSummary
 from chia.types.full_block import FullBlock
@@ -30,7 +33,7 @@ from chia.util.condition_tools import pkm_pairs
 from chia.util.errors import Err, ValidationError
 from chia.util.generator_tools import get_block_header, tx_removals_and_additions
 from chia.util.ints import uint16, uint32, uint64
-from chia.util.streamable import Streamable, dataclass_from_dict, streamable
+from chia.util.streamable import Streamable, streamable
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +48,7 @@ class PreValidationResult(Streamable):
 
 
 def batch_pre_validate_blocks(
-    constants_dict: Dict,
+    constants: ConsensusConstants,
     blocks_pickled: Dict[bytes, bytes],
     full_blocks_pickled: Optional[List[bytes]],
     header_blocks_pickled: Optional[List[bytes]],
@@ -60,7 +63,6 @@ def batch_pre_validate_blocks(
     for k, v in blocks_pickled.items():
         blocks[bytes32(k)] = BlockRecord.from_bytes(v)
     results: List[PreValidationResult] = []
-    constants: ConsensusConstants = dataclass_from_dict(ConsensusConstants, constants_dict)
     if full_blocks_pickled is not None and header_blocks_pickled is not None:
         assert ValueError("Only one should be passed here")
 
@@ -121,8 +123,13 @@ def batch_pre_validate_blocks(
                     if validate_signatures:
                         if npc_result is not None and block.transactions_info is not None:
                             assert npc_result.conds
-                            pairs_pks, pairs_msgs = pkm_pairs(npc_result.conds, constants.AGG_SIG_ME_ADDITIONAL_DATA)
-                            pks_objects: List[G1Element] = [G1Element.from_bytes(pk) for pk in pairs_pks]
+                            pairs_pks, pairs_msgs = pkm_pairs(
+                                npc_result.conds,
+                                constants.AGG_SIG_ME_ADDITIONAL_DATA,
+                                soft_fork=block.height >= constants.SOFT_FORK_HEIGHT,
+                            )
+                            # Using AugSchemeMPL.aggregate_verify, so it's safe to use from_bytes_unchecked
+                            pks_objects: List[G1Element] = [G1Element.from_bytes_unchecked(pk) for pk in pairs_pks]
                             if not AugSchemeMPL.aggregate_verify(
                                 pks_objects, pairs_msgs, block.transactions_info.aggregated_signature
                             ):
@@ -163,13 +170,12 @@ def batch_pre_validate_blocks(
 
 async def pre_validate_blocks_multiprocessing(
     constants: ConsensusConstants,
-    constants_json: Dict,
     block_records: BlockchainInterface,
     blocks: Sequence[FullBlock],
     pool: Executor,
     check_filter: bool,
     npc_results: Dict[uint32, NPCResult],
-    get_block_generator: Callable[[BlockInfo, Optional[Dict[bytes32, FullBlock]]], Awaitable[Optional[BlockGenerator]]],
+    get_block_generator: Callable[[BlockInfo, Dict[bytes32, FullBlock]], Awaitable[Optional[BlockGenerator]]],
     batch_size: int,
     wp_summaries: Optional[List[SubEpochSummary]] = None,
     *,
@@ -182,7 +188,7 @@ async def pre_validate_blocks_multiprocessing(
 
     Args:
         check_filter:
-        constants_json:
+        constants:
         pool:
         constants:
         block_records:
@@ -239,8 +245,8 @@ async def pre_validate_blocks_multiprocessing(
             cc_sp_hash: bytes32 = challenge
         else:
             cc_sp_hash = block.reward_chain_block.challenge_chain_sp_vdf.output.get_hash()
-        q_str: Optional[bytes32] = block.reward_chain_block.proof_of_space.verify_and_get_quality_string(
-            constants, challenge, cc_sp_hash
+        q_str: Optional[bytes32] = verify_and_get_quality_string(
+            block.reward_chain_block.proof_of_space, constants, challenge, cc_sp_hash
         )
         if q_str is None:
             for i, block_i in enumerate(blocks):
@@ -343,7 +349,7 @@ async def pre_validate_blocks_multiprocessing(
             asyncio.get_running_loop().run_in_executor(
                 pool,
                 batch_pre_validate_blocks,
-                constants_json,
+                constants,
                 final_pickled,
                 b_pickled,
                 hb_pickled,
@@ -364,7 +370,7 @@ async def pre_validate_blocks_multiprocessing(
 
 
 def _run_generator(
-    constants_dict: bytes,
+    constants: ConsensusConstants,
     unfinished_block_bytes: bytes,
     block_generator_bytes: bytes,
     height: uint32,
@@ -374,7 +380,6 @@ def _run_generator(
     validate the heavy parts of a block (clvm program) in a different process.
     """
     try:
-        constants: ConsensusConstants = dataclass_from_dict(ConsensusConstants, constants_dict)
         unfinished_block: UnfinishedBlock = UnfinishedBlock.from_bytes(unfinished_block_bytes)
         assert unfinished_block.transactions_info is not None
         block_generator: BlockGenerator = BlockGenerator.from_bytes(block_generator_bytes)
