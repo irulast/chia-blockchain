@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Optional
 
 from chia.introducer.introducer import Introducer
 from chia.protocols.introducer_protocol import RequestPeersIntroducer, RespondPeersIntroducer
 from chia.protocols.protocol_message_types import ProtocolMessageTypes
+from chia.rpc.rpc_server import StateChangedProtocol
 from chia.server.outbound_message import Message, make_msg
 from chia.server.ws_connection import WSChiaConnection
 from chia.types.peer_info import TimestampedPeerInfo
@@ -18,7 +19,7 @@ class IntroducerAPI:
     def __init__(self, introducer) -> None:
         self.introducer = introducer
 
-    def _set_state_changed_callback(self, callback: Callable):
+    def _set_state_changed_callback(self, callback: StateChangedProtocol) -> None:
         pass
 
     @api_request(peer_required=True)
@@ -39,7 +40,7 @@ class IntroducerAPI:
             if r_peer.vetted <= 0:
                 continue
 
-            if r_peer.host == peer.peer_host and r_peer.port == peer.peer_server_port:
+            if r_peer.host == peer.peer_info.host and r_peer.port == peer.peer_server_port:
                 continue
             peer_without_timestamp = TimestampedPeerInfo(
                 r_peer.host,

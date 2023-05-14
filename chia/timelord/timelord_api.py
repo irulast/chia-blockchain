@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Callable, Optional
+from typing import Optional
 
 from chia.protocols import timelord_protocol
+from chia.rpc.rpc_server import StateChangedProtocol
 from chia.timelord.timelord import Chain, IterationType, Timelord, iters_from_block
 from chia.util.api_decorators import api_request
 from chia.util.ints import uint64
@@ -18,7 +19,7 @@ class TimelordAPI:
     def __init__(self, timelord) -> None:
         self.timelord = timelord
 
-    def _set_state_changed_callback(self, callback: Callable):
+    def _set_state_changed_callback(self, callback: StateChangedProtocol) -> None:
         self.timelord.state_changed_callback = callback
 
     @api_request()
@@ -42,12 +43,10 @@ class TimelordAPI:
             ):
                 log.info("Skipping peak, already have.")
                 self.timelord.state_changed("skipping_peak", {"height": new_peak.reward_chain_block.height})
-                return None
             else:
                 log.warning("block that we don't have, changing to it.")
                 self.timelord.new_peak = new_peak
                 self.timelord.state_changed("new_peak", {"height": new_peak.reward_chain_block.height})
-                self.timelord.new_subslot_end = None
 
     @api_request()
     async def new_unfinished_block_timelord(self, new_unfinished_block: timelord_protocol.NewUnfinishedBlockTimelord):
