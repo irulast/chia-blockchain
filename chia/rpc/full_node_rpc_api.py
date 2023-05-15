@@ -658,16 +658,15 @@ class FullNodeRpcApi:
                         block_generator, coin_record.coin.parent_coin_info, self.service.constants.MAX_BLOCK_COST_CLVM
                     )
                 if error is None:
-                    puzzle_ser: SerializedProgram = SerializedProgram.from_program(Program.to(puzzle))
-                    solution_ser: SerializedProgram = SerializedProgram.from_program(Program.to(solution))
+
 
                     if coin_record.spent_block_index > 0:
-                        coin_spend = CoinSpend(coin_record.coin, puzzle_ser, solution_ser)
+                        coin_spend = CoinSpend(coin_record.coin, puzzle, solution)
                         coin_record_dictionary['coin_spend'] = coin_spend
 
                     else:
                         parent_coin = child_id_to_parent_coin_dict[coin_record.coin.name()]
-                        coin_spend = CoinSpend(parent_coin, puzzle_ser, solution_ser)
+                        coin_spend = CoinSpend(parent_coin, puzzle, solution)
                         coin_record_dictionary['parent_coin_spend'] = coin_spend
 
                 elif coin_record.spent_block_index > 0:
@@ -890,14 +889,13 @@ class FullNodeRpcApi:
                 if error is not None:
                     raise ValueError(f"Error: {error}")
 
-                puzzle_ser: SerializedProgram = SerializedProgram.from_program(Program.to(puzzle))
-                solution_ser: SerializedProgram = SerializedProgram.from_program(Program.to(solution))
+
 
                 if coin_record.spent_block_index > 0:
-                    coin_spend = CoinSpend(coin_record.coin, puzzle_ser, solution_ser)
+                    coin_spend = CoinSpend(coin_record.coin, puzzle, solution)
                 else:
                     parent_coin = child_id_to_parent_coin_dict[coin_record.coin.name()]
-                    coin_spend = CoinSpend(parent_coin, puzzle_ser, solution_ser)
+                    coin_spend = CoinSpend(parent_coin, puzzle, solution)
 
             if coin_record.spent_block_index > 0:
                 coin_record_dictionary['coin_spend'] = coin_spend
@@ -1031,10 +1029,9 @@ class FullNodeRpcApi:
                 if error is not None:
                     raise ValueError(f"Error: {error}")
 
-                puzzle_ser: SerializedProgram = SerializedProgram.from_program(Program.to(puzzle))
-                solution_ser: SerializedProgram = SerializedProgram.from_program(Program.to(solution))
+      
 
-                coin_spends[coin_name.hex()] = CoinSpend(coin_record.coin, puzzle_ser, solution_ser).to_json_dict()
+                coin_spends[coin_name.hex()] = CoinSpend(coin_record.coin, puzzle, solution).to_json_dict()
 
         return {'coin_solutions': coin_spends}
 
