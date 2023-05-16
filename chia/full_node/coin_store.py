@@ -360,7 +360,7 @@ class CoinStore:
             params += (last_id,)
 
 
-        async with self.db_wrapper.read_db() as conn:
+        async with self.db_wrapper.reader_no_transaction() as conn:
             total_coin_count = None
 
             if last_id is None:

@@ -48,7 +48,7 @@ class HintStore:
 
         hints_db = tuple(hints)
 
-        async with self.db_wrapper.read_db() as conn:
+        async with self.db_wrapper.reader_no_transaction() as conn:
             cursor = await conn.execute(f'SELECT coin_id FROM hints WHERE hint in ({"?," * (len(hints) - 1)}?)', hints_db)
             rows = await cursor.fetchall()
             await cursor.close()
@@ -90,7 +90,7 @@ class HintStore:
         if last_id is not None:
             params += (last_id,)
 
-        async with self.db_wrapper.read_db() as conn:
+        async with self.db_wrapper.reader_no_transaction() as conn:
             total_coin_count = None
 
             if last_id is None:
@@ -124,7 +124,7 @@ class HintStore:
 
         coin_ids_db = tuple(coin_ids)
 
-        async with self.db_wrapper.read_db() as conn:
+        async with self.db_wrapper.reader_no_transaction() as conn:
             cursor = await conn.execute(
                 f'SELECT coin_id, hint FROM hints INDEXED BY sqlite_autoindex_hints_1 '
                 f'WHERE coin_id in ({"?," * (len(coin_ids) - 1)}?)',
