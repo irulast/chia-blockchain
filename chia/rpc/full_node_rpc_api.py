@@ -651,11 +651,11 @@ class FullNodeRpcApi:
                 assert block_generator is not None
                 if coin_record.spent_block_index > 0:
                     error, puzzle, solution = get_puzzle_and_solution_for_coin(
-                        block_generator, coin_record.coin.name(), self.service.constants.MAX_BLOCK_COST_CLVM
+                        block_generator, coin_record.coin
                     )
                 else:
                     error, puzzle, solution = get_puzzle_and_solution_for_coin(
-                        block_generator, coin_record.coin.parent_coin_info, self.service.constants.MAX_BLOCK_COST_CLVM
+                        block_generator, coin_record.coin
                     )
                 if error is None:
 
@@ -880,11 +880,11 @@ class FullNodeRpcApi:
                 assert block_generator is not None
                 if coin_record.spent_block_index > 0:
                     error, puzzle, solution = get_puzzle_and_solution_for_coin(
-                        block_generator, coin_record.coin.name(), self.service.constants.MAX_BLOCK_COST_CLVM
+                        block_generator, coin_record.coin
                     )
                 else:
                     error, puzzle, solution = get_puzzle_and_solution_for_coin(
-                        block_generator, coin_record.coin.parent_coin_info, self.service.constants.MAX_BLOCK_COST_CLVM
+                        block_generator, coin_record.coin
                     )
                 if error is not None:
                     raise ValueError(f"Error: {error}")
@@ -1024,7 +1024,7 @@ class FullNodeRpcApi:
                 block_generator: Optional[BlockGenerator] = await self.service.blockchain.get_block_generator(block)
                 assert block_generator is not None
                 error, puzzle, solution = get_puzzle_and_solution_for_coin(
-                    block_generator, coin_name, self.service.constants.MAX_BLOCK_COST_CLVM
+                    block_generator, coin_record.coin
                 )
                 if error is not None:
                     raise ValueError(f"Error: {error}")
@@ -1039,16 +1039,22 @@ class FullNodeRpcApi:
         if "header_hash" not in request:
             raise ValueError("No header_hash in request")
         header_hash = bytes32.from_hexstr(request["header_hash"])
+        log = logging.getLogger(__name__)
 
+        log.error('0')
         block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
         if block is None:
             raise ValueError(f"Block {header_hash.hex()} not found")
+        log.error('1')
 
         async with self.service._blockchain_lock_low_priority:
             if self.service.blockchain.height_to_hash(block.height) != header_hash:
                 raise ValueError(f"Block at {header_hash.hex()} is no longer in the blockchain (it's in a fork)")
             additions: List[CoinRecord] = await self.service.coin_store.get_coins_added_at_height(block.height)
+            log.error('2')
+
             removals: List[CoinRecord] = await self.service.coin_store.get_coins_removed_at_height(block.height)
+        log.error('3')
 
         return {
             "additions": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in additions],
