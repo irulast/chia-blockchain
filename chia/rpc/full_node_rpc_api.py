@@ -983,20 +983,16 @@ class FullNodeRpcApi:
         header_hash = bytes32.from_hexstr(request["header_hash"])
         log = logging.getLogger(__name__)
 
-        log.error('0')
         block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
         if block is None:
             raise ValueError(f"Block {header_hash.hex()} not found")
-        log.error('1')
 
         async with self.service._blockchain_lock_low_priority:
             if self.service.blockchain.height_to_hash(block.height) != header_hash:
                 raise ValueError(f"Block at {header_hash.hex()} is no longer in the blockchain (it's in a fork)")
             additions: List[CoinRecord] = await self.service.coin_store.get_coins_added_at_height(block.height)
-            log.error('2')
 
             removals: List[CoinRecord] = await self.service.coin_store.get_coins_removed_at_height(block.height)
-        log.error('3')
 
         return {
             "additions": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in additions],
