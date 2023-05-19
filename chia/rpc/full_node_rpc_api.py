@@ -587,7 +587,9 @@ class FullNodeRpcApi:
 
         return {"coin_records": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in coin_records]}
     
-    async def attach_spends_to_coins(self, coin_records: List[CoinRecord], last_id: bytes32 | None,total_coin_count: int | None):
+    async def attach_spends_to_coins(self, coin_records: List[CoinRecord]):
+        log = logging.getLogger(__name__)
+
         coin_record_with_spends = []
 
         parent_id_to_child_ids_dict: Dict[bytes32, List[bytes32]] = {}
@@ -636,7 +638,6 @@ class FullNodeRpcApi:
                     else:
                         error_text = f"error getting spend for SPENT COIN({coin_record.name.hex()}): {error}"
                         log.error(error_text)
-                        raise ValueError(error_text)
                 else:
                     parent_coin=child_id_to_parent_coin_dict[coin_record.coin.name()]
                     error, puzzle, solution = get_puzzle_and_solution_for_coin(
@@ -646,18 +647,12 @@ class FullNodeRpcApi:
                         parent_spend = CoinSpend(parent_coin, puzzle, solution)
                         coin_record_dictionary['parent_coin_spend'] = parent_spend
                     else:
-                        log = logging.getLogger(__name__)
                         log.error(f"error getting parent spend for unspent coin({coin_record.name.hex()}): {error}")
                  
 
             coin_record_with_spends.append(coin_record_dictionary)
 
-        last_id_hex = None
-        if last_id is not None:
-            last_id_hex = last_id.hex()
-
-
-        return {"coin_records": coin_record_with_spends, "last_id": last_id_hex, "total_coin_count": total_coin_count}
+        return coin_record_with_spends
 
 
     async def get_coin_records_by_puzzle_hashes_paginated(self, request: Dict[str, Any]) -> EndpointResult:
@@ -685,7 +680,13 @@ class FullNodeRpcApi:
 
         coin_records, last_id, total_coin_count = await self.service.blockchain.coin_store.get_coin_records_by_puzzle_hashes_paginated(**kwargs)
 
-        return self.attach_spends_to_coins(coin_records, last_id, total_coin_count)
+        coin_records_with_spends =  await self.attach_spends_to_coins(coin_records, last_id, total_coin_count)
+        last_id_hex = None
+        if last_id is not None:
+            last_id_hex = last_id.hex()
+
+
+        return {"coin_records": coin_records_with_spends, "last_id": last_id_hex, "done_paginating": len(coin_records_with_spends)== 0,'total_coin_count':total_coin_count}
 
     async def get_coin_record_by_name(self, request: Dict[str, Any]) -> EndpointResult:
         """
@@ -816,18 +817,12 @@ class FullNodeRpcApi:
         if self.service.hint_store is None:
             return {"coin_records": []}
 
-        kwargs_hints: Dict[str, Any] = {
-            "hints": [bytes32.from_hexstr(hint) for hint in request["hints"]],
-            "page_size": request["page_size"],
-        }
 
-        if "last_id" in request:
-            kwargs_hints["last_id"] = hexstr_to_bytes(request["last_id"])
-
-        names, last_id, total_coin_count = await self.service.hint_store.get_coin_ids_by_hints_paginated(**kwargs_hints)
+        names = await self.service.hint_store.get_coin_ids_by_hints([bytes32.from_hexstr(hint) for hint in request["hints"]])
 
         kwargs: Dict[str, Any] = {
             "include_spent_coins": False,
+            "page_size": request["page_size"],
             "names": names,
         }
 
@@ -835,13 +830,28 @@ class FullNodeRpcApi:
             kwargs["start_height"] = uint32(request["start_height"])
         if "end_height" in request:
             kwargs["end_height"] = uint32(request["end_height"])
+        
+        if "last_id" in request:
+            kwargs["last_id"] = hexstr_to_bytes(request["last_id"])
 
         if "include_spent_coins" in request:
             kwargs["include_spent_coins"] = request["include_spent_coins"]
 
-        coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**kwargs)
 
-        return self.attach_spends_to_coins(coin_records, last_id, total_coin_count)
+
+        coin_records, last_id = await self.service.blockchain.coin_store.get_coin_records_by_names_paginated(**kwargs)
+
+
+
+        coin_records_with_spends = await self.attach_spends_to_coins(coin_records)
+
+        last_id_hex = None
+        if last_id is not None:
+            last_id_hex = last_id.hex()
+
+
+        return {"coin_records": coin_records_with_spends, "last_id": last_id_hex}
+
 
 
     async def get_hints_by_coin_ids(self, request: Dict[str, Any]) -> EndpointResult:

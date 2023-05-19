@@ -418,6 +418,54 @@ class CoinStore:
                     coins.add(CoinRecord(coin, row[0], row[1], row[2], row[6]))
 
         return list(coins)
+    
+    async def get_coin_records_by_names_paginated(
+        self,
+        include_spent_coins: bool,
+        names: List[bytes32],
+        page_size: int,
+        last_id: Optional[bytes32]= None,
+        start_height: uint32 = uint32(0),
+        end_height: uint32 = uint32((2**32) - 1),
+    ) -> Tuple[List[CoinRecord],Optional[bytes32]]:
+        log = logging.getLogger(__name__)
+
+        if len(names) == 0:
+            return []
+
+        coins = []
+        names_db: Tuple[Any, ...]
+        if self.db_wrapper.db_version == 2:
+            names_db = tuple(names)
+        else:
+            names_db = tuple([name.hex() for name in names])
+
+        params=names_db + (start_height, end_height)
+        if last_id is not None:
+            params += (last_id,)
+
+        async with self.db_wrapper.reader_no_transaction() as conn:
+            async with conn.execute(
+                f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
+                f"coin_parent, amount, timestamp FROM coin_record INDEXED BY sqlite_autoindex_coin_record_1 "
+                f'WHERE coin_name in ({"?," * (len(names) - 1)}?) '
+                f"AND confirmed_index>=? AND confirmed_index<? "
+                f"{'' if include_spent_coins else 'AND spent_index=0'} "
+                f"{'AND coin_name > ?' if last_id is not None else ''} "
+                f"ORDER BY coin_name "
+                f"LIMIT {page_size}",
+                params
+            ) as cursor:
+                next_last_id = last_id
+
+                for row in await cursor.fetchall():
+                    coin = self.row_to_coin(row)
+                    coins.append(CoinRecord(coin, row[0], row[1], row[2], row[6]))
+
+                if len(coins) > 0:
+                    next_last_id = coins[len(coins) - 1].coin.name()
+
+        return coins, next_last_id
 
     def row_to_coin(self, row: sqlite3.Row) -> Coin:
         return Coin(self.maybe_from_hex(row[4]), self.maybe_from_hex(row[3]), uint64.from_bytes(row[5]))
