@@ -680,7 +680,7 @@ class FullNodeRpcApi:
 
         coin_records, last_id, total_coin_count = await self.service.blockchain.coin_store.get_coin_records_by_puzzle_hashes_paginated(**kwargs)
 
-        coin_records_with_spends =  await self.attach_spends_to_coins(coin_records, last_id, total_coin_count)
+        coin_records_with_spends =  await self.attach_spends_to_coins(coin_records)
         last_id_hex = None
         if last_id is not None:
             last_id_hex = last_id.hex()
@@ -816,14 +816,13 @@ class FullNodeRpcApi:
 
         if self.service.hint_store is None:
             return {"coin_records": []}
-
-
-        names = await self.service.hint_store.get_coin_ids_by_hints([bytes32.from_hexstr(hint) for hint in request["hints"]])
+        
 
         kwargs: Dict[str, Any] = {
             "include_spent_coins": False,
+            "hints": [bytes32.from_hexstr(hint) for hint in request["hints"]],
             "page_size": request["page_size"],
-            "names": names,
+
         }
 
         if "start_height" in request:
@@ -838,9 +837,7 @@ class FullNodeRpcApi:
             kwargs["include_spent_coins"] = request["include_spent_coins"]
 
 
-
-        coin_records, last_id = await self.service.blockchain.coin_store.get_coin_records_by_names_paginated(**kwargs)
-
+        coin_records,last_id, count = await self.service.blockchain.coin_store.get_coin_records_by_hints_paginated(**kwargs)
 
 
         coin_records_with_spends = await self.attach_spends_to_coins(coin_records)

@@ -343,7 +343,6 @@ class CoinStore:
             f"AND confirmed_index>=? AND confirmed_index<?" 
         )
         count_query_params = puzzle_hashes_db+ (start_height, end_height)
-        
 
         query = (
             f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
@@ -374,6 +373,73 @@ class CoinStore:
             coins = []
             next_last_id = last_id
 
+            async with conn.execute(
+                query,
+                params,
+            ) as cursor:
+                for row in await cursor.fetchall():
+                    coin = self.row_to_coin(row)
+                    coins.append(CoinRecord(coin, row[0], row[1], row[2], row[6]))
+
+                if len(coins) > 0:
+                    next_last_id = coins[len(coins) - 1].coin.name()
+                
+            return coins, next_last_id, total_coin_count
+        
+    async def get_coin_records_by_hints_paginated(
+        self,
+        include_spent_coins: bool,
+        hints: List[bytes32],
+        page_size: int,
+        last_id: Optional[bytes32] = None,
+        start_height: uint32 = uint32(0),
+        end_height: uint32 = uint32((2 ** 32) - 1),
+    ) -> Tuple[List[CoinRecord], Optional[bytes32], Optional[int]]:
+        if len(hints) == 0:
+            return []
+
+        hints_db = tuple(hints)
+
+
+        log = logging.getLogger(__name__)
+
+        # count_query = (
+        #     "SELECT COUNT(*) as coin_count "
+        #     "FROM coin_record INDEXED BY coin_puzzle_hash "
+        #     f'WHERE puzzle_hash in ({"?," * (len(puzzle_hashes) - 1)}?) '
+        #     f"AND confirmed_index>=? AND confirmed_index<?" 
+        # )
+        # count_query_params = puzzle_hashes_db+ (start_height, end_height)
+        if last_id:
+            log.error(f'last_id: {last_id.hex()}')
+        query = (
+            f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
+            f"coin_parent, amount, timestamp FROM hints INDEXED BY sqlite_autoindex_hints_1 INNER JOIN coin_record ON hints.hint in ({'?,' * (len(hints) - 1)}?) "
+            f'AND hints.coin_id = coin_record.coin_name '
+            f"WHERE +confirmed_index>=? AND +confirmed_index<? "
+            f"{'' if include_spent_coins else 'AND +spent_index=0'} "
+            f"{'AND coin_name > ?' if last_id is not None else ''} "
+            f"ORDER BY hints.coin_id "
+            f"LIMIT {page_size}"
+        )
+        params = hints_db + (start_height, end_height)
+        if last_id is not None:
+            params += (last_id,)
+
+
+        async with self.db_wrapper.reader_no_transaction() as conn:
+            total_coin_count = None
+
+            # if last_id is None:
+            #     async with conn.execute(
+            #         count_query,
+            #         count_query_params,
+            #     ) as cursor:
+            #         count_row =  await cursor.fetchone()
+            #         total_coin_count = count_row[0]
+
+            coins = []
+            next_last_id = last_id
             async with conn.execute(
                 query,
                 params,
