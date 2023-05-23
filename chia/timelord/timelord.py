@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import dataclasses
 import io
@@ -8,7 +10,7 @@ import random
 import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from chiavdf import create_discriminant, prove
 
@@ -16,8 +18,10 @@ from chia.consensus.constants import ConsensusConstants
 from chia.consensus.pot_iterations import calculate_sp_iters, is_overflow_block
 from chia.protocols import timelord_protocol
 from chia.protocols.protocol_message_types import ProtocolMessageTypes
+from chia.rpc.rpc_server import StateChangedProtocol, default_get_connections
 from chia.server.outbound_message import NodeType, make_msg
 from chia.server.server import ChiaServer
+from chia.server.ws_connection import WSChiaConnection
 from chia.timelord.iters_from_block import iters_from_block
 from chia.timelord.timelord_state import LastState
 from chia.timelord.types import Chain, IterationType, StateType
@@ -61,6 +65,15 @@ def prove_bluebox_slow(payload):
 
 
 class Timelord:
+    @property
+    def server(self) -> ChiaServer:
+        # This is a stop gap until the class usage is refactored such the values of
+        # integral attributes are known at creation of the instance.
+        if self._server is None:
+            raise RuntimeError("server not assigned")
+
+        return self._server
+
     def __init__(self, root_path, config: Dict, constants: ConsensusConstants):
         self.config = config
         self.root_path = root_path
@@ -68,7 +81,7 @@ class Timelord:
         self._shut_down = False
         self.free_clients: List[Tuple[str, asyncio.StreamReader, asyncio.StreamWriter]] = []
         self.ip_whitelist = self.config["vdf_clients"]["ip"]
-        self.server: Optional[ChiaServer] = None
+        self._server: Optional[ChiaServer] = None
         self.chain_type_to_stream: Dict[Chain, Tuple[str, asyncio.StreamReader, asyncio.StreamWriter]] = {}
         self.chain_start_time: Dict = {}
         # Chains that currently don't have a vdf_client.
@@ -81,8 +94,6 @@ class Timelord:
         self.allows_iters: List[Chain] = []
         # Last peak received, None if it's already processed.
         self.new_peak: Optional[timelord_protocol.NewPeakTimelord] = None
-        # Last end of subslot bundle, None if we built a peak on top of it.
-        self.new_subslot_end: Optional[EndOfSubSlotBundle] = None
         # Last state received. Can either be a new peak or a new EndOfSubslotBundle.
         # Unfinished block info, iters adjusted to the last peak.
         self.unfinished_blocks: List[timelord_protocol.NewUnfinishedBlockTimelord] = []
@@ -114,7 +125,7 @@ class Timelord:
         self.vdf_failure_time: float = 0
         self.total_unfinished: int = 0
         self.total_infused: int = 0
-        self.state_changed_callback: Optional[Callable] = None
+        self.state_changed_callback: Optional[StateChangedProtocol] = None
         self.bluebox_mode = self.config.get("bluebox_mode", False)
         # Support backwards compatibility for the old `config.yaml` that has field `sanitizer_mode`.
         if not self.bluebox_mode:
@@ -128,7 +139,7 @@ class Timelord:
         self.vdf_server = await asyncio.start_server(
             self._handle_client,
             self.config["vdf_server"]["host"],
-            self.config["vdf_server"]["port"],
+            int(self.config["vdf_server"]["port"]),
         )
         self.last_state: LastState = LastState(self.constants)
         slow_bluebox = self.config.get("slow_bluebox", False)
@@ -149,7 +160,18 @@ class Timelord:
                 )
             else:
                 self.main_loop = asyncio.create_task(self._manage_discriminant_queue_sanitizer())
-        log.info("Started timelord.")
+        log.info(f"Started timelord, listening on port {self.get_vdf_server_port()}")
+
+    def get_connections(self, request_node_type: Optional[NodeType]) -> List[Dict[str, Any]]:
+        return default_get_connections(server=self.server, request_node_type=request_node_type)
+
+    async def on_connect(self, connection: WSChiaConnection):
+        pass
+
+    def get_vdf_server_port(self) -> Optional[uint16]:
+        if self.vdf_server is not None:
+            return self.vdf_server.sockets[0].getsockname()[1]
+        return None
 
     def _close(self):
         self._shut_down = True
@@ -163,7 +185,7 @@ class Timelord:
     async def _await_closed(self):
         pass
 
-    def _set_state_changed_callback(self, callback: Callable):
+    def _set_state_changed_callback(self, callback: StateChangedProtocol) -> None:
         self.state_changed_callback = callback
 
     def state_changed(self, change: str, change_data: Optional[Dict[str, Any]] = None):
@@ -171,7 +193,7 @@ class Timelord:
             self.state_changed_callback(change, change_data)
 
     def set_server(self, server: ChiaServer):
-        self.server = server
+        self._server = server
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         async with self.lock:
@@ -352,14 +374,6 @@ class Timelord:
         self.new_peak = None
         await self._reset_chains()
 
-    async def _handle_subslot_end(self):
-        self.last_state.set_state(self.new_subslot_end)
-        for block in self.unfinished_blocks:
-            if self._can_infuse_unfinished_block(block) is not None:
-                self.total_unfinished += 1
-        self.new_subslot_end = None
-        await self._reset_chains()
-
     async def _map_chains_with_vdf_clients(self):
         while not self._shut_down:
             picked_chain = None
@@ -452,7 +466,7 @@ class Timelord:
                 rc_challenge = self.last_state.get_challenge(Chain.REWARD_CHAIN)
                 if rc_info.challenge != rc_challenge:
                     assert rc_challenge is not None
-                    log.warning(f"SP: Do not have correct challenge {rc_challenge.hex()}" f" has {rc_info.challenge}")
+                    log.warning(f"SP: Do not have correct challenge {rc_challenge.hex()} has {rc_info.challenge}")
                     # This proof is on an outdated challenge, so don't use it
                     continue
                 iters_from_sub_slot_start = cc_info.number_of_iterations + self.last_state.get_last_ip()
@@ -463,7 +477,7 @@ class Timelord:
                     rc_info,
                     rc_proof,
                 )
-                if self.server is not None:
+                if self._server is not None:
                     msg = make_msg(ProtocolMessageTypes.new_signage_point_vdf, response)
                     await self.server.send_to_all([msg], NodeType.FULL_NODE)
                 # Cleanup the signage point from memory.
@@ -576,7 +590,7 @@ class Timelord:
                         icc_proof,
                     )
                     msg = make_msg(ProtocolMessageTypes.new_infusion_point_vdf, response)
-                    if self.server is not None:
+                    if self._server is not None:
                         await self.server.send_to_all([msg], NodeType.FULL_NODE)
 
                     self.proofs_finished = self._clear_proof_list(iteration)
@@ -721,7 +735,7 @@ class Timelord:
             rc_challenge = self.last_state.get_challenge(Chain.REWARD_CHAIN)
             if rc_vdf.challenge != rc_challenge:
                 assert rc_challenge is not None
-                log.warning(f"Do not have correct challenge {rc_challenge.hex()} has" f" {rc_vdf.challenge}")
+                log.warning(f"Do not have correct challenge {rc_challenge.hex()} has {rc_vdf.challenge}")
                 # This proof is on an outdated challenge, so don't use it
                 return None
             log.debug("Collected end of subslot vdfs.")
@@ -784,7 +798,7 @@ class Timelord:
                 rc_sub_slot,
                 SubSlotProofs(cc_proof, icc_ip_proof, rc_proof),
             )
-            if self.server is not None:
+            if self._server is not None:
                 msg = make_msg(
                     ProtocolMessageTypes.new_end_of_sub_slot_vdf,
                     timelord_protocol.NewEndOfSubSlotVDF(eos_bundle),
@@ -802,9 +816,12 @@ class Timelord:
                 # No overflow blocks in a new epoch
                 self.unfinished_blocks = []
             self.overflow_blocks = []
-            self.new_subslot_end = eos_bundle
 
-            await self._handle_subslot_end()
+            self.last_state.set_state(eos_bundle)
+            for block in self.unfinished_blocks:
+                if self._can_infuse_unfinished_block(block) is not None:
+                    self.total_unfinished += 1
+            await self._reset_chains()
 
     async def _handle_failures(self):
         if len(self.vdf_failures) > 0:
@@ -1043,7 +1060,7 @@ class Timelord:
                     response = timelord_protocol.RespondCompactProofOfTime(
                         vdf_info, vdf_proof, header_hash, height, field_vdf
                     )
-                    if self.server is not None:
+                    if self._server is not None:
                         message = make_msg(ProtocolMessageTypes.respond_compact_proof_of_time, response)
                         await self.server.send_to_all([message], NodeType.FULL_NODE)
                     self.state_changed(
@@ -1162,7 +1179,7 @@ class Timelord:
                         picked_info.height,
                         picked_info.field_vdf,
                     )
-                    if self.server is not None:
+                    if self._server is not None:
                         message = make_msg(ProtocolMessageTypes.respond_compact_proof_of_time, response)
                         await self.server.send_to_all([message], NodeType.FULL_NODE)
                 except Exception as e:

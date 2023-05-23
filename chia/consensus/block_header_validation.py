@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import logging
 import time
@@ -21,6 +23,7 @@ from chia.consensus.pot_iterations import (
 )
 from chia.consensus.vdf_info_computation import get_signage_point_vdf_info
 from chia.types.blockchain_format.classgroup import ClassgroupElement
+from chia.types.blockchain_format.proof_of_space import verify_and_get_quality_string
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.blockchain_format.slots import ChallengeChainSubSlot, RewardChainSubSlot, SubSlotProofs
 from chia.types.blockchain_format.vdf import VDFInfo, VDFProof
@@ -44,7 +47,7 @@ def validate_unfinished_header_block(
     expected_sub_slot_iters: uint64,
     skip_overflow_last_ss_validation: bool = False,
     skip_vdf_is_valid: bool = False,
-    check_sub_epoch_summary=True,
+    check_sub_epoch_summary: bool = True,
 ) -> Tuple[Optional[uint64], Optional[ValidationError]]:
     """
     Validates an unfinished header block. This is a block without the infusion VDFs (unfinished)
@@ -482,8 +485,8 @@ def validate_unfinished_header_block(
     else:
         cc_sp_hash = header_block.reward_chain_block.challenge_chain_sp_vdf.output.get_hash()
 
-    q_str: Optional[bytes32] = header_block.reward_chain_block.proof_of_space.verify_and_get_quality_string(
-        constants, challenge, cc_sp_hash
+    q_str: Optional[bytes32] = verify_and_get_quality_string(
+        header_block.reward_chain_block.proof_of_space, constants, challenge, cc_sp_hash
     )
     if q_str is None:
         return None, ValidationError(Err.INVALID_POSPACE)
@@ -812,7 +815,11 @@ def validate_unfinished_header_block(
                 return None, ValidationError(Err.INVALID_TRANSACTIONS_FILTER_HASH)
 
         # 26a. The timestamp in Foliage Block must not be over 5 minutes in the future
-        if header_block.foliage_transaction_block.timestamp > int(time.time() + constants.MAX_FUTURE_TIME):
+        if height >= constants.SOFT_FORK2_HEIGHT:
+            max_future_time = constants.MAX_FUTURE_TIME2
+        else:
+            max_future_time = constants.MAX_FUTURE_TIME
+        if header_block.foliage_transaction_block.timestamp > int(time.time() + max_future_time):
             return None, ValidationError(Err.TIMESTAMP_TOO_FAR_IN_FUTURE)
 
         if prev_b is not None:
@@ -831,7 +838,7 @@ def validate_finished_header_block(
     check_filter: bool,
     expected_difficulty: uint64,
     expected_sub_slot_iters: uint64,
-    check_sub_epoch_summary=True,
+    check_sub_epoch_summary: bool = True,
 ) -> Tuple[Optional[uint64], Optional[ValidationError]]:
     """
     Fully validates the header of a block. A header block is the same  as a full block, but
@@ -891,7 +898,7 @@ def validate_finished_header_block(
         # 27b. Check genesis block height, weight, and prev block hash
         if header_block.height != uint32(0):
             return None, ValidationError(Err.INVALID_HEIGHT)
-        if header_block.weight != constants.DIFFICULTY_STARTING:
+        if header_block.weight != uint128(constants.DIFFICULTY_STARTING):
             return None, ValidationError(Err.INVALID_WEIGHT)
         if header_block.prev_header_hash != constants.GENESIS_CHALLENGE:
             return None, ValidationError(Err.INVALID_PREV_BLOCK_HASH)
