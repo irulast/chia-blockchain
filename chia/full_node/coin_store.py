@@ -413,8 +413,7 @@ class CoinStore:
             f'WHERE hint in ({"?," * (len(hints_db) - 1)}?)'
         )
         count_query_params = hints_db
-        if last_id:
-            log.error(f'last_id: {last_id.hex()}')
+        
         query = (
             f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
             f"coin_parent, amount, timestamp FROM hints INDEXED BY sqlite_autoindex_hints_1 INNER JOIN coin_record ON hints.hint in ({'?,' * (len(hints) - 1)}?) "
