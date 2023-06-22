@@ -370,6 +370,10 @@ class CoinStore:
                     count_row =  await cursor.fetchone()
                     total_coin_count = count_row[0]
 
+                    if total_coin_count == 0:
+                        log.error('returning empty coin list becuase total_coin_count is 0')
+                        return [], None, total_coin_count
+
             coins = []
             next_last_id = last_id
 
@@ -403,13 +407,12 @@ class CoinStore:
 
         log = logging.getLogger(__name__)
 
-        # count_query = (
-        #     "SELECT COUNT(*) as coin_count "
-        #     "FROM coin_record INDEXED BY coin_puzzle_hash "
-        #     f'WHERE puzzle_hash in ({"?," * (len(puzzle_hashes) - 1)}?) '
-        #     f"AND confirmed_index>=? AND confirmed_index<?" 
-        # )
-        # count_query_params = puzzle_hashes_db+ (start_height, end_height)
+        count_query = (
+            "SELECT COUNT(*) as coin_count "
+            "FROM hints "
+            f'WHERE hint in ({"?," * (len(hints_db) - 1)}?)'
+        )
+        count_query_params = hints_db
         if last_id:
             log.error(f'last_id: {last_id.hex()}')
         query = (
@@ -430,13 +433,16 @@ class CoinStore:
         async with self.db_wrapper.reader_no_transaction() as conn:
             total_coin_count = None
 
-            # if last_id is None:
-            #     async with conn.execute(
-            #         count_query,
-            #         count_query_params,
-            #     ) as cursor:
-            #         count_row =  await cursor.fetchone()
-            #         total_coin_count = count_row[0]
+            if last_id is None:
+                async with conn.execute(
+                    count_query,
+                    count_query_params,
+                ) as cursor:
+                    count_row =  await cursor.fetchone()
+                    total_coin_count = count_row[0]
+                    if total_coin_count == 0:
+                        log.error('returning empty coin list becuase total_coin_count is 0')
+                        return [], None, total_coin_count
 
             coins = []
             next_last_id = last_id
