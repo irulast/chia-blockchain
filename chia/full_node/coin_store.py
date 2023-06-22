@@ -371,7 +371,6 @@ class CoinStore:
                     total_coin_count = count_row[0]
 
                     if total_coin_count == 0:
-                        log.error('returning empty coin list becuase total_coin_count is 0')
                         return [], None, total_coin_count
 
             coins = []
@@ -413,7 +412,7 @@ class CoinStore:
             f'WHERE hint in ({"?," * (len(hints_db) - 1)}?)'
         )
         count_query_params = hints_db
-        
+
         query = (
             f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
             f"coin_parent, amount, timestamp FROM hints INDEXED BY sqlite_autoindex_hints_1 INNER JOIN coin_record ON hints.hint in ({'?,' * (len(hints) - 1)}?) "
@@ -440,7 +439,6 @@ class CoinStore:
                     count_row =  await cursor.fetchone()
                     total_coin_count = count_row[0]
                     if total_coin_count == 0:
-                        log.error('returning empty coin list becuase total_coin_count is 0')
                         return [], None, total_coin_count
 
             coins = []
