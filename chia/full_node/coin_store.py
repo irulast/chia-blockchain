@@ -432,17 +432,21 @@ class CoinStore:
             total_coin_count = None
 
             if last_id is None:
+                start = time.time()
                 async with conn.execute(
                     count_query,
                     count_query_params,
                 ) as cursor:
                     count_row =  await cursor.fetchone()
+                    end = time.time()
+                    log.error(f"count_query took {end-start} seconds")
                     total_coin_count = count_row[0]
                     if total_coin_count == 0:
                         return [], None, total_coin_count
 
             coins = []
             next_last_id = last_id
+            start = time.time()
             async with conn.execute(
                 query,
                 params,
@@ -450,6 +454,8 @@ class CoinStore:
                 for row in await cursor.fetchall():
                     coin = self.row_to_coin(row)
                     coins.append(CoinRecord(coin, row[0], row[1], row[2], row[6]))
+                end = time.time()
+                log.error(f"get_coin_records_by_hints_paginated query took {end-start} seconds")
 
                 if len(coins) > 0:
                     next_last_id = coins[len(coins) - 1].coin.name()

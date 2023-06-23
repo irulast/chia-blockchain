@@ -27,7 +27,6 @@ from chia.util.log_exceptions import log_exceptions
 from chia.util.math import make_monotonically_decreasing
 from chia.util.ws_message import WsRpcMessage, create_payload_dict
 
-
 def coin_record_dict_backwards_compat(coin_record: Dict[str, Any]) -> Dict[str, bool]:
     coin_record["spent"] = coin_record["spent_block_index"] > 0
     return coin_record
@@ -686,7 +685,7 @@ class FullNodeRpcApi:
             last_id_hex = last_id.hex()
 
 
-        return {"coin_records": coin_records_with_spends, "last_id": last_id_hex, "done_paginating": len(coin_records_with_spends)== 0,'total_coin_count':total_coin_count}
+        return {"coin_records": coin_records_with_spends, "last_id": last_id_hex, 'total_coin_count':total_coin_count}
 
     async def get_coin_record_by_name(self, request: Dict[str, Any]) -> EndpointResult:
         """
@@ -847,7 +846,7 @@ class FullNodeRpcApi:
             last_id_hex = last_id.hex()
 
 
-        return {"coin_records": coin_records_with_spends, "last_id": last_id_hex}
+        return {"coin_records": coin_records_with_spends, "last_id": last_id_hex, "total_coin_count": count}
 
 
 
