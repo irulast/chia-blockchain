@@ -406,16 +406,39 @@ class CoinStore:
 
         log = logging.getLogger(__name__)
 
-        count_query = (
-            "SELECT COUNT(*) as coin_count "
-            "FROM hints "
-            f'WHERE hint in ({"?," * (len(hints_db) - 1)}?)'
-        )
-        count_query_params = hints_db
 
-        query = (
+        # subquery_method_query = (
+        #     "SELECT confirmed_index, spent_index, coinbase, puzzle_hash, coin_parent, amount, timestamp "
+        #     "FROM coin_record " 
+        #     "WHERE coin_name in "
+        #     f"(SELECT coin_id from hints "
+        #     f"WHERE hint in ({'?,' * (len(hints) - 1)}?) "
+        #     f"{'AND coin_id > ?' if last_id is not None else ''}) "
+        #     f"AND +confirmed_index>=? AND +confirmed_index<? "
+        #     f"{'' if include_spent_coins else 'AND +spent_index=0'} "
+        #     f"ORDER BY coin_name "
+        #     f"LIMIT {page_size}"
+        # )
+
+        # params = hints_db
+        # if last_id is not None:
+        #     params += (last_id,)
+
+        # params+=(start_height, end_height)
+        # scan_query = (
+        #     f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
+        #     f"coin_parent, amount, timestamp FROM hints INDEXED BY sqlite_autoindex_hints_1 INNER JOIN coin_record ON hints.hint in ({'?,' * (len(hints) - 1)}?) "
+        #     f'AND hints.coin_id = coin_record.coin_name '
+        #     f"WHERE +confirmed_index>=? AND +confirmed_index<? "
+        #     f"{'' if include_spent_coins else 'AND +spent_index=0'} "
+        #     f"{'AND coin_name > ?' if last_id is not None else ''} "
+        #     f"ORDER BY hints.coin_id "
+        #     f"LIMIT {page_size}"
+        # )
+
+        search_and_sort_query = (
             f"SELECT confirmed_index, spent_index, coinbase, puzzle_hash, "
-            f"coin_parent, amount, timestamp FROM hints INDEXED BY sqlite_autoindex_hints_1 INNER JOIN coin_record ON hints.hint in ({'?,' * (len(hints) - 1)}?) "
+            f"coin_parent, amount, timestamp FROM hints INNER JOIN coin_record ON hints.hint in ({'?,' * (len(hints) - 1)}?) "
             f'AND hints.coin_id = coin_record.coin_name '
             f"WHERE +confirmed_index>=? AND +confirmed_index<? "
             f"{'' if include_spent_coins else 'AND +spent_index=0'} "
@@ -429,32 +452,24 @@ class CoinStore:
 
 
         async with self.db_wrapper.reader_no_transaction() as conn:
-            total_coin_count = None
-
-            if last_id is None:
-                async with conn.execute(
-                    count_query,
-                    count_query_params,
-                ) as cursor:
-                    count_row =  await cursor.fetchone()
-                    total_coin_count = count_row[0]
-                    if total_coin_count == 0:
-                        return [], None, total_coin_count
-
             coins = []
             next_last_id = last_id
+            start = time.time()
             async with conn.execute(
-                query,
+                search_and_sort_query,
                 params,
             ) as cursor:
                 for row in await cursor.fetchall():
                     coin = self.row_to_coin(row)
                     coins.append(CoinRecord(coin, row[0], row[1], row[2], row[6]))
+                end= time.time()
+                log.error(f"get_coin_records_by_hints_paginated query took {end-start} seconds")
+
 
                 if len(coins) > 0:
                     next_last_id = coins[len(coins) - 1].coin.name()
                 
-            return coins, next_last_id, total_coin_count
+            return coins, next_last_id, None
 
     async def get_coin_records_by_names(
         self,
