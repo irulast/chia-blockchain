@@ -622,6 +622,8 @@ class FullNodeRpcApi:
             assert header_hash is not None
             block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
 
+            coin_id=coin_record.coin.name()
+
             if block is None or block.transactions_generator is None:
                 coin_spend = None
             else:
@@ -637,8 +639,9 @@ class FullNodeRpcApi:
                     else:
                         error_text = f"error getting spend for SPENT COIN({coin_record.name.hex()}): {error}"
                         log.error(error_text)
-                else:
-                    parent_coin=child_id_to_parent_coin_dict[coin_record.coin.name()]
+                elif coin_id in child_id_to_parent_coin_dict:
+                    parent_coin=child_id_to_parent_coin_dict[coin_id]
+
                     error, puzzle, solution = get_puzzle_and_solution_for_coin(
                         block_generator, parent_coin
                     )
