@@ -454,7 +454,6 @@ class CoinStore:
         async with self.db_wrapper.reader_no_transaction() as conn:
             coins = []
             next_last_id = last_id
-            start = time.time()
             async with conn.execute(
                 search_and_sort_query,
                 params,
@@ -462,9 +461,6 @@ class CoinStore:
                 for row in await cursor.fetchall():
                     coin = self.row_to_coin(row)
                     coins.append(CoinRecord(coin, row[0], row[1], row[2], row[6]))
-                end= time.time()
-                log.error(f"get_coin_records_by_hints_paginated query took {end-start} seconds")
-
 
                 if len(coins) > 0:
                     next_last_id = coins[len(coins) - 1].coin.name()
