@@ -37,10 +37,6 @@ class FullNodeRpcApi:
         self.service = service
         self.service_name = "chia_full_node"
         self.cached_blockchain_state: Optional[Dict[str, Any]] = None
-        self.total_compute_time = 0
-        self.total_queries = 0
-
-        # self.log = logging.getLogger(__name__)
 
     def get_routes(self) -> Dict[str, Endpoint]:
         return {
@@ -904,9 +900,6 @@ class FullNodeRpcApi:
         if coin_record is None or not coin_record.spent or coin_record.spent_block_index != height:
             raise ValueError(f"Invalid height {height}. coin record {coin_record}")
 
-        start = datetime.now()
-
-
         header_hash = self.service.blockchain.height_to_hash(height)
         assert header_hash is not None
         block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
@@ -916,23 +909,8 @@ class FullNodeRpcApi:
 
         block_generator: Optional[BlockGenerator] = await self.service.blockchain.get_block_generator(block)
         assert block_generator is not None
-        error, puzzle, solution = get_puzzle_and_solution_for_coin(block_generator, coin_record.coin)
-        if error is not None:
-            raise ValueError(f"Error: {error}")
-
-        end = datetime.now()
-
-        difference = (end - start)
-
-        total_seconds = difference.total_seconds()
-        self.total_compute_time += total_seconds
-        self.total_queries += 1
-        log = logging.getLogger(__name__)
-
-        assert puzzle is not None
-        assert solution is not None
-
-        return {"coin_solution": CoinSpend(coin_record.coin, puzzle, solution)}
+        spend_info = get_puzzle_and_solution_for_coin(block_generator, coin_record.coin)
+        return {"coin_solution": CoinSpend(coin_record.coin, spend_info.puzzle, spend_info.solution)}
 
     async def get_puzzles_and_solutions_by_names(self, request: Dict[str, Any]) -> EndpointResult:
         if "names" not in request:
@@ -980,7 +958,6 @@ class FullNodeRpcApi:
         if "header_hash" not in request:
             raise ValueError("No header_hash in request")
         header_hash = bytes32.from_hexstr(request["header_hash"])
-        log = logging.getLogger(__name__)
 
         block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
         if block is None:
@@ -990,7 +967,6 @@ class FullNodeRpcApi:
             if self.service.blockchain.height_to_hash(block.height) != header_hash:
                 raise ValueError(f"Block at {header_hash.hex()} is no longer in the blockchain (it's in a fork)")
             additions: List[CoinRecord] = await self.service.coin_store.get_coins_added_at_height(block.height)
-
             removals: List[CoinRecord] = await self.service.coin_store.get_coins_removed_at_height(block.height)
 
         return {
@@ -1039,12 +1015,12 @@ class FullNodeRpcApi:
         }
 
     async def get_all_mempool_tx_ids(self, _: Dict[str, Any]) -> EndpointResult:
-        ids = list(self.service.mempool_manager.mempool.all_spend_ids())
+        ids = list(self.service.mempool_manager.mempool.all_item_ids())
         return {"tx_ids": ids}
 
     async def get_all_mempool_items(self, _: Dict[str, Any]) -> EndpointResult:
         spends = {}
-        for item in self.service.mempool_manager.mempool.all_spends():
+        for item in self.service.mempool_manager.mempool.all_items():
             spends[item.name.hex()] = item.to_json_dict()
         return {"mempool_items": spends}
 
