@@ -602,50 +602,33 @@ class FullNodeRpcApi:
 
         parent_coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**parent_coin_kwargs)
 
-        child_id_to_parent_coin_dict: Dict[bytes32, Coin] = {}
+        child_id_to_parent_coin_dict: Dict[bytes32, CoinRecord] = {}
         for parent_coin_record in parent_coin_records:
             child_ids = parent_id_to_child_ids_dict[parent_coin_record.coin.name()]
             for child_id in child_ids:
-                child_id_to_parent_coin_dict[child_id] = parent_coin_record.coin
+                child_id_to_parent_coin_dict[child_id] = parent_coin_record
 
         for coin_record in coin_records:
             coin_record_dictionary = coin_record_dict_backwards_compat(coin_record.to_json_dict())
 
-            if coin_record.spent_block_index > 0:
-                header_hash = self.service.blockchain.height_to_hash(coin_record.spent_block_index)
-            else:
-                header_hash = self.service.blockchain.height_to_hash(coin_record.confirmed_block_index)
-            assert header_hash is not None
-            block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
-
             coin_id=coin_record.coin.name()
 
-            if block is None or block.transactions_generator is None:
-                coin_spend = None
-            else:
-                block_generator: Optional[BlockGenerator] = await self.service.blockchain.get_block_generator(block)
-                assert block_generator is not None
-                if coin_record.spent_block_index > 0:
-                    spend_info = get_puzzle_and_solution_for_coin(
-                        block_generator, coin_record.coin
-                    )
-                    coin_spend = CoinSpend(coin_record.coin, spend_info.puzzle, spend_info.solution)
-                    coin_record_dictionary['coin_spend'] = coin_spend
-     
-                elif coin_id in child_id_to_parent_coin_dict:
-                    parent_coin=child_id_to_parent_coin_dict[coin_id]
+            if coin_id in child_id_to_parent_coin_dict:
+                parent_coin=child_id_to_parent_coin_dict[coin_id]
 
-                    spend_info = get_puzzle_and_solution_for_coin(
-                        block_generator, parent_coin
-                    )
-                    parent_spend = CoinSpend(parent_coin, spend_info.puzzle, spend_info.solution)
-                    coin_record_dictionary['parent_coin_spend'] = parent_spend
+                coin_record_dictionary['parent_coin_spend']= await self.get_coin_spend_for_coin_record(parent_coin)
+
+            if coin_record.spent_block_index > 0:
+                coin_spend=await self.get_coin_spend_for_coin_record(coin_record)
+                if coin_spend is None:
+                    log.error(f"Coin spend not found for spent coin {coin_id}")
+                    continue
+                coin_record_dictionary['coin_spend'] = coin_spend
                  
-
             coin_record_with_spends.append(coin_record_dictionary)
 
         return coin_record_with_spends
-
+    
 
     async def get_coin_records_by_puzzle_hashes_paginated(self, request: Dict[str, Any]) -> EndpointResult:
         """
@@ -905,6 +888,27 @@ class FullNodeRpcApi:
         assert block_generator is not None
         spend_info = get_puzzle_and_solution_for_coin(block_generator, coin_record.coin)
         return {"coin_solution": CoinSpend(coin_record.coin, spend_info.puzzle, spend_info.solution)}
+    
+    async def get_coin_spend_for_coin_record(self, coin_record: CoinRecord) -> Optional[CoinSpend]:
+        if not coin_record.spent:
+            return
+         
+        height= coin_record.spent_block_index
+
+        header_hash = self.service.blockchain.height_to_hash(height)
+        assert header_hash is not None
+        block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
+
+        if block is None or block.transactions_generator is None:
+            return
+
+        block_generator: Optional[BlockGenerator] = await self.service.blockchain.get_block_generator(block)
+        if block_generator is None:
+            return
+        
+        spend_info = get_puzzle_and_solution_for_coin(block_generator, coin_record.coin)
+
+        return CoinSpend(coin_record.coin, spend_info.puzzle, spend_info.solution)
 
     async def get_puzzles_and_solutions_by_names(self, request: Dict[str, Any]) -> EndpointResult:
         if "names" not in request:
