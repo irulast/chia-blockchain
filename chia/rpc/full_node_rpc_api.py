@@ -72,6 +72,7 @@ class FullNodeRpcApi:
             "/push_tx": self.push_tx,
             "/get_puzzle_and_solution": self.get_puzzle_and_solution,
             "/get_puzzles_and_solutions_by_names":self.get_puzzles_and_solutions_by_names,
+            "/get_singleton_by_launcher_id": self.get_singleton_by_launcher_id,
             # Mempool
             "/get_all_mempool_tx_ids": self.get_all_mempool_tx_ids,
             "/get_all_mempool_items": self.get_all_mempool_items,
