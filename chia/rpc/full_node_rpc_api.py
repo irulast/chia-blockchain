@@ -974,7 +974,9 @@ class FullNodeRpcApi:
         if len(filtered_additions) != 1:
             raise ValueError(f"Invalid singleton no single odd child coin.")
 
-        return self.service.blockchain.coin_store.get_coin_record(filtered_additions[0].name())
+        coin_record: Optional[CoinRecord] = await self.service.blockchain.coin_store.get_coin_record(filtered_additions[0].name())
+
+        return coin_record
 
     async def get_singleton_by_launcher_id(self, request: Dict[str, Any]) -> EndpointResult:
         if "launcher_id" not in request:
