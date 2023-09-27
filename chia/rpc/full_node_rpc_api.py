@@ -966,7 +966,7 @@ class FullNodeRpcApi:
 
         return CoinSpend(coin_record.coin, spend_info.puzzle, spend_info.solution)
     
-    async def get_singleton_addition(self, parent_spend: CoinSpend) -> CoinRecord:
+    async def get_singleton_addition(self, parent_spend: CoinSpend) -> Optional[CoinRecord]:
         additions: List[Coin] = compute_additions(parent_spend)
 
         filtered_additions: List[Coin] = list(filter(lambda coin: coin.amount % 2 == 1,additions))
@@ -983,13 +983,16 @@ class FullNodeRpcApi:
 
         singleton_coin_record: Optional[CoinRecord] = await self.service.blockchain.coin_store.get_coin_record(launcher_id)
 
-        if (singleton_coin_record is None):
+        if singleton_coin_record is None:
             raise ValueError(f"Launcher coin not found for ID {launcher_id.hex()}")
 
         while singleton_coin_record.spent_block_index > 0:
             singleton_parent_spend = await self.get_coin_spend_for_coin_record(singleton_coin_record) 
 
             singleton_coin_record = await self.get_singleton_addition(singleton_parent_spend)
+
+            if singleton_coin_record is None:
+                raise ValueError("Singleton coin record not found")
         
         return {
             "coin_record": coin_record_dict_backwards_compat(singleton_coin_record.to_json_dict()),
