@@ -965,47 +965,39 @@ class FullNodeRpcApi:
         spend_info = get_puzzle_and_solution_for_coin(block_generator, coin_record.coin)
 
         return CoinSpend(coin_record.coin, spend_info.puzzle, spend_info.solution)
+    
+    async def get_singleton_addition(self, parent_spend: CoinSpend) -> CoinRecord:
+        additions: List[Coin] = compute_additions(parent_spend)
+
+        filtered_additions: List[Coin] = list(filter(lambda coin: coin.amount % 2 == 1,additions))
+
+        if len(filtered_additions) != 1:
+            raise ValueError(f"Invalid singleton no single odd child coin.")
+
+        return self.service.blockchain.coin_store.get_coin_record(filtered_additions[0].name())
 
     async def get_singleton_by_launcher_id(self, request: Dict[str, Any]) -> EndpointResult:
         if "launcher_id" not in request:
             raise ValueError("Launcher ID not in request")
         launcher_id = bytes32.from_hexstr(request["launcher_id"])
 
-        launcher_coin: Optional[CoinRecord] = await self.service.blockchain.coin_store.get_coin_record(launcher_id)
+        launcher_coin_record: Optional[CoinRecord] = await self.service.blockchain.coin_store.get_coin_record(launcher_id)
 
-        if (launcher_coin is None):
+        if (launcher_coin_record is None):
             raise ValueError(f"Launcher coin not found for ID {launcher_id.hex()}")
         
-        launcher_spend = await self.get_coin_spend_for_coin_record(launcher_coin)
+        launcher_spend = await self.get_coin_spend_for_coin_record(launcher_coin_record)
 
-        launcher_additions = compute_additions(launcher_spend)
-
-        filtered_additions: List[Coin] = list(filter(lambda coin: coin.amount % 2 == 1,launcher_additions))
-
-        if len(filtered_additions) != 1:
-            raise ValueError(f"Invalid singleton no single odd child coin.")
-
-        eve_addition = filtered_additions[0]
-
-        singleton_coin_record: Optional[CoinRecord] = await self.service.blockchain.coin_store.get_coin_record(eve_addition.name())
+        singleton_coin_record = await self.get_singleton_addition(launcher_spend)
 
         while singleton_coin_record.spent_block_index > 0:
             singleton_parent_spend = await self.get_coin_spend_for_coin_record(singleton_coin_record) 
-            
-            additions = compute_additions(singleton_parent_spend)
 
-            filtered_additions: List[Coin] = list(filter(lambda coin: coin.amount % 2 == 1,additions))
-
-            if len(filtered_additions) != 1:
-                raise ValueError(f"Invalid singleton no single odd child coin.")
-
-            singleton_coin: Coin = filtered_additions[0]
-
-            singleton_coin_record = await self.service.blockchain.coin_store.get_coin_record(singleton_coin.name())
+            singleton_coin_record = await self.get_singleton_addition(singleton_parent_spend)
         
         return {
-            "singleton_coin_record": coin_record_dict_backwards_compat(singleton_coin_record.to_json_dict()),
-            "singleton_parent_spend": singleton_parent_spend.to_json_dict()
+            "coin_record": coin_record_dict_backwards_compat(singleton_coin_record.to_json_dict()),
+            "parent_spend": singleton_parent_spend.to_json_dict()
             }
 
     async def get_additions_and_removals(self, request: Dict[str, Any]) -> EndpointResult:
