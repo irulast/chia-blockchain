@@ -974,13 +974,18 @@ class FullNodeRpcApi:
         launcher_coin: Optional[CoinRecord] = await self.service.blockchain.coin_store.get_coin_record(launcher_id)
 
         if (launcher_coin is None):
-            return {"success": False, "error": f"Launcher coin not found for ID {launcher_id.hex()}"}  
+            raise ValueError(f"Launcher coin not found for ID {launcher_id.hex()}")
         
         launcher_spend = await self.get_coin_spend_for_coin_record(launcher_coin)
 
         launcher_additions = compute_additions(launcher_spend)
 
-        eve_addition = list(filter(lambda coin: coin.amount == 1,launcher_additions))[0]
+        filtered_additions: List[Coin] = list(filter(lambda coin: coin.amount % 2 == 1,launcher_additions))
+
+        if len(filtered_additions) != 1:
+            raise ValueError(f"Invalid singleton no single odd child coin.")
+
+        eve_addition = filtered_additions[0]
 
         singleton_coin_record: Optional[CoinRecord] = await self.service.blockchain.coin_store.get_coin_record(eve_addition.name())
 
@@ -989,12 +994,17 @@ class FullNodeRpcApi:
             
             additions = compute_additions(singleton_parent_spend)
 
-            singleton_coin: Coin = list(filter(lambda coin: coin.amount % 2 == 1,additions))[0]
+            filtered_additions: List[Coin] = list(filter(lambda coin: coin.amount % 2 == 1,additions))
+
+            if len(filtered_additions) != 1:
+                raise ValueError(f"Invalid singleton no single odd child coin.")
+
+            singleton_coin: Coin = filtered_additions[0]
 
             singleton_coin_record = await self.service.blockchain.coin_store.get_coin_record(singleton_coin.name())
         
         return {
-            "singleton_coin": coin_record_dict_backwards_compat(singleton_coin_record.to_json_dict()),
+            "singleton_coin_record": coin_record_dict_backwards_compat(singleton_coin_record.to_json_dict()),
             "singleton_parent_spend": singleton_parent_spend.to_json_dict()
             }
 
