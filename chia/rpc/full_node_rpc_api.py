@@ -981,14 +981,10 @@ class FullNodeRpcApi:
             raise ValueError("Launcher ID not in request")
         launcher_id = bytes32.from_hexstr(request["launcher_id"])
 
-        launcher_coin_record: Optional[CoinRecord] = await self.service.blockchain.coin_store.get_coin_record(launcher_id)
+        singleton_coin_record: Optional[CoinRecord] = await self.service.blockchain.coin_store.get_coin_record(launcher_id)
 
-        if (launcher_coin_record is None):
+        if (singleton_coin_record is None):
             raise ValueError(f"Launcher coin not found for ID {launcher_id.hex()}")
-        
-        launcher_spend = await self.get_coin_spend_for_coin_record(launcher_coin_record)
-
-        singleton_coin_record = await self.get_singleton_addition(launcher_spend)
 
         while singleton_coin_record.spent_block_index > 0:
             singleton_parent_spend = await self.get_coin_spend_for_coin_record(singleton_coin_record) 
