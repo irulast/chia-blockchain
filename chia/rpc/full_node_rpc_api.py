@@ -15,7 +15,7 @@ from chia.server.outbound_message import NodeType
 from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_record import CoinRecord
-from chia.types.coin_spend import CoinSpend
+from chia.types.coin_spend import CoinSpend, compute_additions
 from chia.types.full_block import FullBlock
 from chia.types.generator_types import BlockGenerator
 from chia.types.mempool_inclusion_status import MempoolInclusionStatus
@@ -72,6 +72,7 @@ class FullNodeRpcApi:
             "/push_tx": self.push_tx,
             "/get_puzzle_and_solution": self.get_puzzle_and_solution,
             "/get_puzzles_and_solutions_by_names":self.get_puzzles_and_solutions_by_names,
+            "/get_singleton_by_launcher_id": self.get_singleton_by_launcher_id,
             # Mempool
             "/get_all_mempool_tx_ids": self.get_all_mempool_tx_ids,
             "/get_all_mempool_items": self.get_all_mempool_items,
@@ -943,6 +944,62 @@ class FullNodeRpcApi:
                 coin_spends[coin_name.hex()] = CoinSpend(coin_record.coin, spend_info.puzzle, spend_info.solution).to_json_dict()
 
         return {'coin_solutions': coin_spends}
+
+    async def get_coin_spend_for_coin_record(self, coin_record: CoinRecord) -> Optional[CoinSpend]:
+        if not coin_record.spent:
+            return
+         
+        height= coin_record.spent_block_index
+
+        header_hash = self.service.blockchain.height_to_hash(height)
+        assert header_hash is not None
+        block: Optional[FullBlock] = await self.service.block_store.get_full_block(header_hash)
+
+        if block is None or block.transactions_generator is None:
+            return
+
+        block_generator: Optional[BlockGenerator] = await self.service.blockchain.get_block_generator(block)
+        if block_generator is None:
+            return
+        
+        spend_info = get_puzzle_and_solution_for_coin(block_generator, coin_record.coin)
+
+        return CoinSpend(coin_record.coin, spend_info.puzzle, spend_info.solution)
+    
+    async def get_singleton_addition(self, parent_spend: CoinSpend) -> Optional[CoinRecord]:
+        additions: List[Coin] = compute_additions(parent_spend)
+
+        filtered_additions: List[Coin] = list(filter(lambda coin: coin.amount % 2 == 1,additions))
+
+        if len(filtered_additions) != 1:
+            raise ValueError(f"Invalid singleton no single odd child coin.")
+
+        coin_record: Optional[CoinRecord] = await self.service.blockchain.coin_store.get_coin_record(filtered_additions[0].name())
+
+        return coin_record
+
+    async def get_singleton_by_launcher_id(self, request: Dict[str, Any]) -> EndpointResult:
+        if "launcher_id" not in request:
+            raise ValueError("Launcher ID not in request")
+        launcher_id = bytes32.from_hexstr(request["launcher_id"])
+
+        singleton_coin_record: Optional[CoinRecord] = await self.service.blockchain.coin_store.get_coin_record(launcher_id)
+
+        if singleton_coin_record is None:
+            raise ValueError(f"Launcher coin not found for ID {launcher_id.hex()}")
+
+        while singleton_coin_record.spent_block_index > 0:
+            singleton_parent_spend = await self.get_coin_spend_for_coin_record(singleton_coin_record) 
+
+            singleton_coin_record = await self.get_singleton_addition(singleton_parent_spend)
+
+            if singleton_coin_record is None:
+                raise ValueError("Singleton coin record not found")
+        
+        return {
+            "coin_record": coin_record_dict_backwards_compat(singleton_coin_record.to_json_dict()),
+            "parent_spend": singleton_parent_spend.to_json_dict()
+            }
 
     async def get_additions_and_removals(self, request: Dict[str, Any]) -> EndpointResult:
         if "header_hash" not in request:
