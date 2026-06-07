@@ -30,6 +30,8 @@ from chia.full_node.hard_fork_utils import get_flags
 from chia.protocols.outbound_message import NodeType
 from chia.rpc.rpc_errors import RpcError, RpcErrorCodes
 from chia.rpc.rpc_server import Endpoint, EndpointResult
+from chia.types.blockchain_format.coin import Coin
+from chia.wallet.util.compute_additions import compute_additions
 from chia.types.blockchain_format.proof_of_space import calculate_prefix_bits
 from chia.types.generator_types import BlockGenerator, NewBlockGenerator
 from chia.types.mempool_inclusion_status import MempoolInclusionStatus
@@ -114,17 +116,24 @@ class FullNodeRpcApi:
             "/get_unfinished_block_headers": self.get_unfinished_block_headers,
             "/get_network_space": self.get_network_space,
             "/get_additions_and_removals": self.get_additions_and_removals,
+            "/get_additions_and_removals_with_hints": self.get_additions_and_removals_with_hints,
             "/get_aggsig_additional_data": self.get_aggsig_additional_data,
             "/get_recent_signage_point_or_eos": self.get_recent_signage_point_or_eos,
             # Coins
             "/get_coin_records_by_puzzle_hash": self.get_coin_records_by_puzzle_hash,
             "/get_coin_records_by_puzzle_hashes": self.get_coin_records_by_puzzle_hashes,
+            "/get_coin_records_by_puzzle_hashes_paginated": self.get_coin_records_by_puzzle_hashes_paginated,
             "/get_coin_record_by_name": self.get_coin_record_by_name,
             "/get_coin_records_by_names": self.get_coin_records_by_names,
             "/get_coin_records_by_parent_ids": self.get_coin_records_by_parent_ids,
             "/get_coin_records_by_hint": self.get_coin_records_by_hint,
+            "/get_coin_records_by_hints": self.get_coin_records_by_hints,
+            "/get_coin_records_by_hints_paginated": self.get_coin_records_by_hints_paginated,
+            "/get_hints_by_coin_ids": self.get_hints_by_coin_ids,
             "/push_tx": self.push_tx,
             "/get_puzzle_and_solution": self.get_puzzle_and_solution,
+            "/get_puzzles_and_solutions_by_names": self.get_puzzles_and_solutions_by_names,
+            "/get_singleton_by_launcher_id": self.get_singleton_by_launcher_id,
             # Mempool
             "/get_all_mempool_tx_ids": self.get_all_mempool_tx_ids,
             "/get_all_mempool_items": self.get_all_mempool_items,
@@ -159,9 +168,19 @@ class FullNodeRpcApi:
                     "metrics",
                 )
             )
+            # irulast/enhanced_full_node: also notify the iriga node manager
+            payloads.append(
+                create_payload_dict(
+                    "get_blockchain_state",
+                    data,
+                    self.service_name,
+                    "iriga_node_mgr",
+                )
+            )
 
         if change in {"block", "signage_point"}:
             payloads.append(create_payload_dict(change, change_data, self.service_name, "metrics"))
+            payloads.append(create_payload_dict(change, change_data, self.service_name, "iriga_node_mgr"))
 
         if change == "unfinished_block":
             payloads.append(create_payload_dict(change, change_data, self.service_name, "unfinished_block_info"))
@@ -919,6 +938,268 @@ class FullNodeRpcApi:
         return {
             "additions": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in additions],
             "removals": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in removals],
+        }
+
+    # ---- irulast/enhanced_full_node: paginated coin queries, hint lookups, singleton walking ----
+
+    async def _make_coin_spend(self, block: FullBlock, coin: Coin) -> CoinSpend:
+        """Reconstruct the CoinSpend for `coin` from its containing block's generator (2.7.x API)."""
+        block_generator: BlockGenerator | None = await get_block_generator(
+            self.service.blockchain.lookup_block_generators, block
+        )
+        assert block_generator is not None
+        flags = await get_flags(constants=self.service.constants, blocks=self.service.blockchain, block=block)
+        puzzle, solution = get_puzzle_and_solution_for_coin(
+            block_generator.program,
+            block_generator.generator_refs,
+            self.service.constants.MAX_BLOCK_COST_CLVM,
+            coin,
+            flags,
+        )
+        return CoinSpend(coin, puzzle, solution)
+
+    async def attach_spends_to_coins(self, coin_records: list[CoinRecord]) -> list[dict[str, Any]]:
+        coin_record_with_spends: list[dict[str, Any]] = []
+
+        parent_id_to_child_ids_dict: dict[bytes32, list[bytes32]] = {}
+        for coin_record in coin_records:
+            parent_id_to_child_ids_dict.setdefault(coin_record.coin.parent_coin_info, []).append(
+                coin_record.coin.name()
+            )
+
+        parent_coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(
+            include_spent_coins=True, names=list(parent_id_to_child_ids_dict.keys())
+        )
+
+        child_id_to_parent_coin_dict: dict[bytes32, Coin] = {}
+        for parent_coin_record in parent_coin_records:
+            for child_id in parent_id_to_child_ids_dict.get(parent_coin_record.coin.name(), []):
+                child_id_to_parent_coin_dict[child_id] = parent_coin_record.coin
+
+        for coin_record in coin_records:
+            coin_record_dictionary = coin_record_dict_backwards_compat(coin_record.to_json_dict())
+
+            if coin_record.spent_block_index > 0:
+                header_hash = self.service.blockchain.height_to_hash(coin_record.spent_block_index)
+            else:
+                header_hash = self.service.blockchain.height_to_hash(coin_record.confirmed_block_index)
+            assert header_hash is not None
+            block: FullBlock | None = await self.service.block_store.get_full_block(header_hash)
+
+            coin_id = coin_record.coin.name()
+            if block is not None and block.transactions_generator is not None:
+                if coin_record.spent_block_index > 0:
+                    coin_record_dictionary["coin_spend"] = await self._make_coin_spend(block, coin_record.coin)
+                elif coin_id in child_id_to_parent_coin_dict:
+                    parent_coin = child_id_to_parent_coin_dict[coin_id]
+                    coin_record_dictionary["parent_coin_spend"] = await self._make_coin_spend(block, parent_coin)
+
+            coin_record_with_spends.append(coin_record_dictionary)
+
+        return coin_record_with_spends
+
+    async def get_coin_records_by_puzzle_hashes_paginated(self, request: dict[str, Any]) -> EndpointResult:
+        """Retrieve coins for the given puzzle hashes, one page at a time (unspent by default)."""
+        if "puzzle_hashes" not in request:
+            raise ValueError("Puzzle hashes not in request")
+        if "page_size" not in request:
+            raise ValueError("page_size not in request")
+        kwargs: dict[str, Any] = {
+            "include_spent_coins": False,
+            "puzzle_hashes": [hexstr_to_bytes(ph) for ph in request["puzzle_hashes"]],
+            "page_size": request["page_size"],
+        }
+        if "start_height" in request:
+            kwargs["start_height"] = uint32(request["start_height"])
+        if "end_height" in request:
+            kwargs["end_height"] = uint32(request["end_height"])
+        if "last_id" in request:
+            kwargs["last_id"] = hexstr_to_bytes(request["last_id"])
+        if "include_spent_coins" in request:
+            kwargs["include_spent_coins"] = request["include_spent_coins"]
+
+        coin_records, last_id, total_coin_count = (
+            await self.service.blockchain.coin_store.get_coin_records_by_puzzle_hashes_paginated(**kwargs)
+        )
+        coin_records_with_spends = await self.attach_spends_to_coins(coin_records)
+        return {
+            "coin_records": coin_records_with_spends,
+            "last_id": None if last_id is None else last_id.hex(),
+            "total_coin_count": total_coin_count,
+        }
+
+    async def get_coin_records_by_hints(self, request: dict[str, Any]) -> EndpointResult:
+        """Retrieve coins by hints (unspent by default)."""
+        if "hints" not in request:
+            raise ValueError("Hints not in request")
+        if self.service.hint_store is None:
+            return {"coin_records": []}
+
+        names = await self.service.hint_store.get_coin_ids_by_hints(
+            [bytes32.from_hexstr(hint) for hint in request["hints"]]
+        )
+        kwargs: dict[str, Any] = {"include_spent_coins": False, "names": names}
+        if "start_height" in request:
+            kwargs["start_height"] = uint32(request["start_height"])
+        if "end_height" in request:
+            kwargs["end_height"] = uint32(request["end_height"])
+        if "include_spent_coins" in request:
+            kwargs["include_spent_coins"] = request["include_spent_coins"]
+
+        coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**kwargs)
+        return {"coin_records": [coin_record_dict_backwards_compat(cr.to_json_dict()) for cr in coin_records]}
+
+    async def get_coin_records_by_hints_paginated(self, request: dict[str, Any]) -> EndpointResult:
+        """Retrieve coins by hints, one page at a time (unspent by default)."""
+        if "hints" not in request:
+            raise ValueError("Hints not in request")
+        if "page_size" not in request:
+            raise ValueError("page_size not in request")
+        if self.service.hint_store is None:
+            return {"coin_records": []}
+
+        kwargs: dict[str, Any] = {
+            "include_spent_coins": False,
+            "hints": [bytes32.from_hexstr(hint) for hint in request["hints"]],
+            "page_size": request["page_size"],
+        }
+        if "start_height" in request:
+            kwargs["start_height"] = uint32(request["start_height"])
+        if "end_height" in request:
+            kwargs["end_height"] = uint32(request["end_height"])
+        if "last_id" in request:
+            kwargs["last_id"] = hexstr_to_bytes(request["last_id"])
+        if "include_spent_coins" in request:
+            kwargs["include_spent_coins"] = request["include_spent_coins"]
+
+        coin_records, last_id, count = (
+            await self.service.blockchain.coin_store.get_coin_records_by_hints_paginated(**kwargs)
+        )
+        coin_records_with_spends = await self.attach_spends_to_coins(coin_records)
+        return {
+            "coin_records": coin_records_with_spends,
+            "last_id": None if last_id is None else last_id.hex(),
+            "total_coin_count": count,
+        }
+
+    async def get_hints_by_coin_ids(self, request: dict[str, Any]) -> EndpointResult:
+        """Retrieve the hint for each of the given coin ids."""
+        if "coin_ids" not in request:
+            raise ValueError("coin_ids not in request")
+        if self.service.hint_store is None:
+            return {"coin_id_hints": {}}
+
+        coin_id_hints_dict = await self.service.hint_store.get_hints_for_coin_ids(
+            [hexstr_to_bytes(coin_id) for coin_id in request["coin_ids"]]
+        )
+        return {"coin_id_hints": {coin_id.hex(): hint.hex() for coin_id, hint in coin_id_hints_dict.items()}}
+
+    async def get_puzzles_and_solutions_by_names(self, request: dict[str, Any]) -> EndpointResult:
+        if "names" not in request:
+            raise ValueError("Names not in request")
+        kwargs: dict[str, Any] = {
+            "include_spent_coins": True,
+            "names": [hexstr_to_bytes(name) for name in request["names"]],
+        }
+        if "start_height" in request:
+            kwargs["start_height"] = uint32(request["start_height"])
+        if "end_height" in request:
+            kwargs["end_height"] = uint32(request["end_height"])
+
+        coin_records = await self.service.blockchain.coin_store.get_coin_records_by_names(**kwargs)
+
+        coin_spends: dict[str, Any] = {}
+        for coin_record in coin_records:
+            if not coin_record.spent:
+                continue
+            coin_name = coin_record.coin.name()
+            header_hash = self.service.blockchain.height_to_hash(coin_record.spent_block_index)
+            assert header_hash is not None
+            block: FullBlock | None = await self.service.block_store.get_full_block(header_hash)
+            if block is None or block.transactions_generator is None:
+                coin_spends[coin_name.hex()] = None
+            else:
+                coin_spends[coin_name.hex()] = (await self._make_coin_spend(block, coin_record.coin)).to_json_dict()
+
+        return {"coin_solutions": coin_spends}
+
+    async def get_coin_spend_for_coin_record(self, coin_record: CoinRecord) -> CoinSpend | None:
+        if not coin_record.spent:
+            return None
+        header_hash = self.service.blockchain.height_to_hash(coin_record.spent_block_index)
+        assert header_hash is not None
+        block: FullBlock | None = await self.service.block_store.get_full_block(header_hash)
+        if block is None or block.transactions_generator is None:
+            return None
+        return await self._make_coin_spend(block, coin_record.coin)
+
+    async def get_singleton_addition(self, parent_spend: CoinSpend) -> CoinRecord | None:
+        additions = compute_additions(parent_spend)
+        filtered_additions = [coin for coin in additions if coin.amount % 2 == 1]
+        if len(filtered_additions) != 1:
+            raise ValueError("Invalid singleton: no single odd child coin.")
+        return await self.service.blockchain.coin_store.get_coin_record(filtered_additions[0].name())
+
+    async def get_singleton_by_launcher_id(self, request: dict[str, Any]) -> EndpointResult:
+        if "launcher_id" not in request:
+            raise ValueError("Launcher ID not in request")
+        launcher_id = bytes32.from_hexstr(request["launcher_id"])
+
+        singleton_coin_record = await self.service.blockchain.coin_store.get_coin_record(launcher_id)
+        if singleton_coin_record is None:
+            raise ValueError(f"Launcher coin not found for ID {launcher_id.hex()}")
+
+        singleton_parent_spend: CoinSpend | None = None
+        while singleton_coin_record.spent_block_index > 0:
+            singleton_parent_spend = await self.get_coin_spend_for_coin_record(singleton_coin_record)
+            assert singleton_parent_spend is not None
+            singleton_coin_record = await self.get_singleton_addition(singleton_parent_spend)
+            if singleton_coin_record is None:
+                raise ValueError("Singleton coin record not found")
+
+        if singleton_parent_spend is None:
+            raise ValueError("Launcher coin is unspent; no singleton has been created yet")
+
+        return {
+            "coin_record": coin_record_dict_backwards_compat(singleton_coin_record.to_json_dict()),
+            "parent_spend": singleton_parent_spend.to_json_dict(),
+        }
+
+    async def get_additions_and_removals_with_hints(self, request: dict[str, Any]) -> EndpointResult:
+        if "header_hash" not in request:
+            raise ValueError("No header_hash in request")
+        header_hash = bytes32.from_hexstr(request["header_hash"])
+
+        block: FullBlock | None = await self.service.block_store.get_full_block(header_hash)
+        if block is None:
+            raise ValueError(f"Block {header_hash.hex()} not found")
+
+        async with self.service.blockchain.priority_mutex.acquire(priority=BlockchainMutexPriority.low):
+            if self.service.blockchain.height_to_hash(block.height) != header_hash:
+                raise ValueError(f"Block at {header_hash.hex()} is no longer in the blockchain (it's in a fork)")
+            additions: list[CoinRecord] = await self.service.coin_store.get_coins_added_at_height(block.height)
+            removals: list[CoinRecord] = await self.service.coin_store.get_coins_removed_at_height(block.height)
+
+        additions_hint_dict = {}
+        removals_hint_dict = {}
+        if self.service.hint_store is not None:
+            additions_hint_dict = await self.service.hint_store.get_hints_for_coin_ids(
+                [cr.coin.name() for cr in additions]
+            )
+            removals_hint_dict = await self.service.hint_store.get_hints_for_coin_ids(
+                [cr.coin.name() for cr in removals]
+            )
+
+        def with_hint(cr: CoinRecord, hint_dict: dict[bytes32, bytes]) -> dict[str, Any]:
+            cr_json = coin_record_dict_backwards_compat(cr.to_json_dict())
+            coin_id = cr.coin.name()
+            if coin_id in hint_dict:
+                cr_json["hint"] = hint_dict[coin_id].hex()
+            return cr_json
+
+        return {
+            "additions": [with_hint(cr, additions_hint_dict) for cr in additions],
+            "removals": [with_hint(cr, removals_hint_dict) for cr in removals],
         }
 
     async def get_aggsig_additional_data(self, _: dict[str, Any]) -> EndpointResult:

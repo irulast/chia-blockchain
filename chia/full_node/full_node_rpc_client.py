@@ -133,6 +133,24 @@ class FullNodeRpcClient(RpcClient):
         response = await self.fetch("get_coin_records_by_puzzle_hashes", d)
         return [CoinRecord.from_json_dict(coin_record_dict_backwards_compat(coin)) for coin in response["coin_records"]]
 
+    async def get_coin_records_by_hints(
+        self,
+        hints: list[bytes32],
+        include_spent_coins: bool = True,
+        start_height: int | None = None,
+        end_height: int | None = None,
+    ) -> list[CoinRecord]:
+        # irulast/enhanced_full_node: bulk hint lookup
+        hints_hex = [hint.hex() for hint in hints]
+        d: dict[str, Any] = {"hints": hints_hex, "include_spent_coins": include_spent_coins}
+        if start_height is not None:
+            d["start_height"] = start_height
+        if end_height is not None:
+            d["end_height"] = end_height
+
+        response = await self.fetch("get_coin_records_by_hints", d)
+        return [CoinRecord.from_json_dict(coin_record_dict_backwards_compat(coin)) for coin in response["coin_records"]]
+
     async def get_coin_records_by_parent_ids(
         self,
         parent_ids: list[bytes32],

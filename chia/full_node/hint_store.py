@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+from typing import Optional
 
 import typing_extensions
 from chia_rs.sized_bytes import bytes32
@@ -72,6 +73,76 @@ class HintStore:
                 await cursor.close()
 
         return hints
+
+    # ---- irulast/enhanced_full_node: bulk + paginated hint queries ----
+
+    async def get_coin_ids_by_hints(self, hints: list[bytes]) -> list[bytes32]:
+        hints = list(hints)
+        if len(hints) == 0:
+            return []
+        hints_db = tuple(hints)
+        async with self.db_wrapper.reader_no_transaction() as conn:
+            cursor = await conn.execute(
+                f'SELECT coin_id FROM hints WHERE hint in ({"?," * (len(hints) - 1)}?)', hints_db
+            )
+            rows = await cursor.fetchall()
+            await cursor.close()
+        return [bytes32(row[0]) for row in rows]
+
+    async def get_coin_ids_by_hints_paginated(
+        self,
+        hints: list[bytes],
+        page_size: int,
+        last_id: Optional[bytes32] = None,
+    ) -> tuple[list[bytes32], Optional[bytes32], Optional[int]]:
+        hints = list(hints)
+        if len(hints) == 0:
+            return [], last_id, 0
+        hints_db = tuple(hints)
+
+        count_query = f'SELECT COUNT(*) as coin_count FROM hints WHERE hint in ({"?," * (len(hints) - 1)}?) '
+        query = (
+            f"SELECT coin_id FROM hints "
+            f'WHERE hint in ({"?," * (len(hints) - 1)}?) '
+            f"{'AND coin_id > ?' if last_id is not None else ''} "
+            f"ORDER BY coin_id "
+            f"LIMIT {page_size}"
+        )
+        params = hints_db
+        if last_id is not None:
+            params += (last_id,)
+
+        async with self.db_wrapper.reader_no_transaction() as conn:
+            total_coin_count = None
+            if last_id is None:
+                async with conn.execute(count_query, hints_db) as cursor:
+                    count_row = await cursor.fetchone()
+                    total_coin_count = count_row[0]
+
+            coin_ids: list[bytes32] = []
+            next_last_id = last_id
+            async with conn.execute(query, params) as cursor:
+                for row in await cursor.fetchall():
+                    coin_ids.append(bytes32(row[0]))
+                if len(coin_ids) > 0:
+                    next_last_id = coin_ids[-1]
+
+            return coin_ids, next_last_id, total_coin_count
+
+    async def get_hints_for_coin_ids(self, coin_ids: list[bytes32]) -> dict[bytes32, bytes]:
+        coin_ids = list(coin_ids)
+        if len(coin_ids) == 0:
+            return {}
+        coin_ids_db = tuple(coin_ids)
+        async with self.db_wrapper.reader_no_transaction() as conn:
+            cursor = await conn.execute(
+                f"SELECT coin_id, hint FROM hints INDEXED BY sqlite_autoindex_hints_1 "
+                f'WHERE coin_id in ({"?," * (len(coin_ids) - 1)}?)',
+                coin_ids_db,
+            )
+            rows = await cursor.fetchall()
+            await cursor.close()
+        return {bytes32(row[0]): row[1] for row in rows}
 
     async def add_hints(self, coin_hint_list: list[tuple[bytes32, bytes]]) -> None:
         if len(coin_hint_list) == 0:

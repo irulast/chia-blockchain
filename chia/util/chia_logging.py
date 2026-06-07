@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from logging.handlers import SysLogHandler
+from logging.handlers import HTTPHandler, SysLogHandler
 from pathlib import Path
 from typing import Any, cast
 
@@ -87,6 +87,10 @@ def initialize_logging(
         log_syslog_handler = SysLogHandler(address=(log_syslog_host, log_syslog_port))
         log_syslog_handler.setFormatter(logging.Formatter(fmt=f"{service_name} %(message)s", datefmt=log_date_format))
         handlers.append(log_syslog_handler)
+
+    # irulast/enhanced_full_node: optionally forward logs to an Iriga HTTP collector
+    if "IRIGA_HOST" in os.environ:
+        handlers.append(HTTPHandler(os.environ["IRIGA_HOST"], os.environ["IRIGA_HTTP_LOG_PATH"]))
 
     if beta_root_path is not None:
         handlers.append(get_file_log_handler(file_log_formatter, beta_root_path, get_beta_logging_config()))
