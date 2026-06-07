@@ -74,7 +74,10 @@ def create_chia_directory(
             "testnet0"
         ].copy()
         config["network_overrides"]["config"]["simulator0"] = config["network_overrides"]["config"]["testnet0"].copy()
-        sim_genesis = "eb8c4d20b322be8d9fddbf9412016bdffe9a2901d7edb0e364e94266d0e095f7"
+        # irulast/enhanced_full_node: use mainnet's genesis challenge so the simulator is a
+        # faithful mainnet-constants oracle (matches the 1.8.x sim our clients validated against;
+        # upstream 2.7.x switched this to a dedicated simulator genesis "eb8c4d20...").
+        sim_genesis = "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb"
         config["network_overrides"]["constants"]["simulator0"]["GENESIS_CHALLENGE"] = sim_genesis
         config["network_overrides"]["constants"]["simulator0"]["AGG_SIG_ME_ADDITIONAL_DATA"] = sim_genesis
         # tell services to use simulator0
